@@ -2,7 +2,7 @@ name: Android debug APK
 on:
   push:
     branches: [main]
-    paths: ['android/**', 'docs/**', '.github/workflows/android-debug.yml']
+    paths: ['android/**', 'docs/**', 'tests/**', '.github/workflows/android-debug.yml']
   workflow_dispatch:
 jobs:
   build:
