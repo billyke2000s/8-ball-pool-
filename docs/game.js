@@ -80,7 +80,7 @@
   function pocketSound(){tone(190,.23,'sine',.15,47);setTimeout(()=>tone(95,.16,'triangle',.06,55),65);}
   function resultSound(){for(let i=0;i<4;i++)setTimeout(()=>tone(400+i*100,.22,'sine',.1),i*105);}
   function fire(angle,power,remote=false){
-    if(moving||game.winner||game.ballInHand)return;
+    if(moving||game.winner!==null||game.ballInHand)return;
     if(!remote&&!canShoot())return;
     power=Math.min(100,Math.max(1,Number(power)||0));
     if(power<2){if(!remote)toast('Set power above zero');return;}
@@ -90,7 +90,7 @@
     c.vx=Math.cos(aim)*(240+power*8);
     c.vy=Math.sin(aim)*(240+power*8);
     moving=true;game.shotCount++;
-    status('Balls in motion');el('power').value='0';el('powerValue').textContent='0%';
+    status('Balls in motion');powerSet=0;el('power').value='0';el('powerValue').textContent='0%';
     strikeSound(power);
     if(!remote)send({type:'shot',angle:aim,power});
     redrawUI();
@@ -238,7 +238,12 @@
     else if(obj.type==='place'&&!moving&&ownTurn()===false)handlePlacement(Number(obj.x),Number(obj.y),true);
   }
   function setSound(){soundOn=!soundOn;el('sound').textContent=soundOn?'♫ Sound on':'♫ Sound off';el('sound').setAttribute('aria-pressed',String(soundOn));if(soundOn)initAudio();}
-  function roundedRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+  function roundedRect(x,y,w,h,r){
+    ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+  }
   function drawTable(){
     // The APK uses a full-portrait felt table with timber rails, brass pocket
     // housings, a left pull-back power control and a right precision wheel.
