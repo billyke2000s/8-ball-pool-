@@ -2,33 +2,36 @@
   'use strict';
   const canvas=document.getElementById('pool'), ctx=canvas.getContext('2d');
   const el=id=>document.getElementById(id);
-  const W=1100,H=570,R=11.2, left=117,right=983,top=105,bottom=465;
-  const pockets=[[left,top],[550,top],[right,top],[left,bottom],[550,bottom],[right,bottom]];
+  const W=700,H=1400,R=16, left=76,right=624,top=80,bottom=1322;
+  const pockets=[[left,top],[right,top],[left,(top+bottom)/2],[right,(top+bottom)/2],[left,bottom],[right,bottom]];
   const FIXED=1/120, FRICTION=212, RESTITUTION=.965, RAIL=.84;
-  let game, aim=0, shot=null, moving=false, accumulator=0,lastFrame=0, pointerDown=false;
+  let game, aim=-Math.PI/2, shot=null, moving=false, accumulator=0,lastFrame=0, pointerDown=false;
+  let dragMode=null,dragOrigin=null,startAngle=0, powerSet=0;
   let soundOn=true,audio=null,lastCollision=0,noticeTimer=null;
   let networkRole=null, networkSend=null, connected=false, rackNumber=0, pendingSnapshot=null;
   const rand=(a,b)=>a+Math.random()*(b-a);
   function ball(id,x,y){return {id,x,y,vx:0,vy:0,alive:true};}
   function colorType(id){if(id===0)return 'cue';if(id===8)return 'black';return id<=7?'low':'high';}
-  function makeRack(mode='eight'){
-    const balls=[ball(0,342,285)];
-    const layout=[1,9,2,10,8,3,11,4,12,5,13,6,14,7,15];
+  function makeRack(mode='blackball'){
+    // Portrait triangular blackball setup recovered from the game reference:
+    // five across the top, narrowing to one ball facing the cue.
+    const balls=[ball(0,350,1034)];
+    const layout=[1,9,10,2,11,12,3,13,4,5,8,14,15,6,7];
     let k=0;
     for(let row=0;row<5;row++){
-      for(let n=0;n<=row;n++){
-        const id=layout[k++];
-        balls.push(ball(id,741+row*(2*R+.40),285+(n-row/2)*(2*R+.40)));
-      }
+      const count=5-row;
+      const yy=222+row*31.5;
+      const x0=350-((count-1)*36.5)/2;
+      for(let n=0;n<count;n++)balls.push(ball(layout[k++],x0+n*36.5,yy));
     }
     return {mode,balls,turn:0,groups:[null,null],breakShot:true,winner:null,ballInHand:false,shotCount:0};
   }
   const cue=()=>game.balls[0];
   function reset(mode=el('mode').value){
     rackNumber++;
-    game=makeRack(mode);aim=0;moving=false;shot=null;
+    game=makeRack(mode);aim=-Math.PI/2;moving=false;shot=null;powerSet=0;
     el('power').value='0';el('powerValue').textContent='0%';
-    el('mode').value=mode;status('Break to start');redrawUI();broadcastState();
+    el('mode').value=mode;status('Your turn!');redrawUI();broadcastState();
   }
   function status(s){el('message').textContent=s;}
   function toast(s,ms=2100){
@@ -49,6 +52,7 @@
       el('g'+i).textContent=groupName(game.groups[i]);
     }
     el('round').textContent='RACK '+String(rackNumber).padStart(2,'0');
+    if(el('rackMenu'))el('rackMenu').textContent=String(rackNumber).padStart(2,'0');
     el('shoot').disabled=!canShoot();
     el('place').hidden=!game.ballInHand||!ownTurn();
     el('mode').value=game.mode;
@@ -139,7 +143,7 @@
       moving=false;finishShot();
     }
   }
-  function safeCuePosition(x=342,y=285){
+  function safeCuePosition(x=350,y=1034){
     const c=cue();c.alive=true;c.vx=c.vy=0;
     for(let radius=0;radius<180;radius+=18){
       for(let j=0;j<24;j++){
@@ -149,7 +153,7 @@
         }
       }
     }
-    c.x=342;c.y=285;
+    c.x=350;c.y=1034;
   }
   function finishShot(){
     const localShot=shot.owner;
@@ -236,83 +240,156 @@
   function setSound(){soundOn=!soundOn;el('sound').textContent=soundOn?'♫ Sound on':'♫ Sound off';el('sound').setAttribute('aria-pressed',String(soundOn));if(soundOn)initAudio();}
   function roundedRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
   function drawTable(){
-    ctx.fillStyle='#08110f';ctx.fillRect(0,0,W,H);
-    const oak=ctx.createLinearGradient(0,0,0,H);oak.addColorStop(0,'#73452a');oak.addColorStop(.22,'#b47b47');oak.addColorStop(.65,'#59331f');oak.addColorStop(1,'#9e6336');
-    roundedRect(36,26,1028,518,45);ctx.fillStyle=oak;ctx.fill();
-    roundedRect(47,37,1006,496,34);ctx.strokeStyle='#2b170c';ctx.lineWidth=10;ctx.stroke();
-    roundedRect(75,62,950,446,28);ctx.fillStyle='#092e25';ctx.fill();
-    const felt=ctx.createRadialGradient(530,240,65,550,300,600);
-    felt.addColorStop(0,'#18765d');felt.addColorStop(.6,'#12664e');felt.addColorStop(1,'#073629');
-    ctx.fillStyle=felt;ctx.fillRect(left,top,right-left,bottom-top);
-    ctx.strokeStyle='#124334';ctx.lineWidth=7;ctx.strokeRect(left-4,top-4,right-left+8,bottom-top+8);
-    // six-pocket rail segments and corner caps
-    ctx.lineWidth=16;ctx.strokeStyle='#234f34';ctx.lineCap='round';
-    const rails=[[[left+33,top],[550-37,top]],[[550+37,top],[right-33,top]],
-      [[left+33,bottom],[550-37,bottom]],[[550+37,bottom],[right-33,bottom]],
-      [[left,top+34],[left,bottom-34]],[[right,top+34],[right,bottom-34]]];
-    rails.forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.stroke();});
-    pockets.forEach(([x,y],i)=>{
-      ctx.fillStyle='#3a2015';ctx.beginPath();ctx.arc(x,y,i===1||i===4?24:26,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#030908';ctx.beginPath();ctx.arc(x,y,i===1||i===4?20:22,0,Math.PI*2);ctx.fill();
-    });
-    ctx.fillStyle='#a5c7b180';ctx.beginPath();ctx.arc(342,285,3,0,Math.PI*2);ctx.fill();
-    ctx.beginPath();ctx.arc(742,285,3,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.strokeStyle='#9bc7ad40';ctx.setLineDash([3,9]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(342,top+8);ctx.lineTo(342,bottom-8);ctx.stroke();ctx.restore();
-    ctx.fillStyle='#d9b27c';for(let x=200;x<=900;x+=85){for(const y of [47,523]){ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillRect(-4,-4,8,8);ctx.restore();}}
+    // The APK uses a full-portrait felt table with timber rails, brass pocket
+    // housings, a left pull-back power control and a right precision wheel.
+    // Shapes and textures below are redrawn, not copied APK images.
+    ctx.fillStyle='#040909';ctx.fillRect(0,0,W,H);
+    const timber=ctx.createLinearGradient(0,0,700,0);
+    timber.addColorStop(0,'#3d1e12');timber.addColorStop(.12,'#7b4121');timber.addColorStop(.45,'#6a301c');timber.addColorStop(.75,'#7c4222');timber.addColorStop(1,'#3e2114');
+    ctx.fillStyle=timber;ctx.fillRect(0,0,W,H);
+    // Grain follows the wooden rails and is deliberately low contrast.
+    for(let i=0;i<76;i++){
+      const y=((i*83+17)%H);
+      ctx.fillStyle=i%4===0?'#20130d25':'#dba27313';
+      ctx.fillRect(0,y,W,1+(i%3===0?1:0));
+    }
+    const felt=ctx.createRadialGradient(365,690,85,350,690,900);
+    felt.addColorStop(0,'#13595b');felt.addColorStop(.72,'#0d4c4f');felt.addColorStop(1,'#07383c');
+    ctx.fillStyle='#251b15';ctx.fillRect(54,48,592,1304);
+    ctx.fillStyle=felt;ctx.fillRect(69,65,562,1272);
+    // Inner shadows and teal rubber cushion strips.
+    ctx.lineCap='butt';
+    ctx.strokeStyle='#011b19';ctx.lineWidth=19;
+    ctx.strokeRect(69,65,562,1272);
+    ctx.strokeStyle='#007c73';ctx.lineWidth=10;
+    ctx.strokeRect(69,65,562,1272);
+    ctx.strokeStyle='#1d9185';ctx.lineWidth=2;
+    ctx.strokeRect(75,71,550,1260);
+    // Realistic felt falloff near the rails.
+    const lip=ctx.createLinearGradient(77,0,115,0);
+    lip.addColorStop(0,'#001a1e6b');lip.addColorStop(1,'#001a1e00');
+    ctx.fillStyle=lip;ctx.fillRect(77,85,38,1228);
+    const lip2=ctx.createLinearGradient(585,0,623,0);
+    lip2.addColorStop(0,'#001a1e00');lip2.addColorStop(1,'#001a1e6b');
+    ctx.fillStyle=lip2;ctx.fillRect(585,85,38,1228);
+    // Wood-to-metal corner blocks with dark sunk pocket throats.
+    function brassPiece(){
+      const g=ctx.createLinearGradient(0,0,130,130);
+      g.addColorStop(0,'#c68b36');g.addColorStop(.17,'#fff0a2');
+      g.addColorStop(.4,'#c79843');g.addColorStop(.76,'#94611c');g.addColorStop(1,'#f0b958');
+      ctx.fillStyle=g;ctx.strokeStyle='#ffd88b';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(124,0);ctx.lineTo(124,65);
+      ctx.lineTo(101,65);ctx.lineTo(82,48);ctx.arc(69,71,34,-.75,2.25,true);
+      ctx.lineTo(77,126);ctx.lineTo(0,126);ctx.closePath();ctx.fill();ctx.stroke();
+      const dark=ctx.createRadialGradient(63,69,3,68,72,41);
+      dark.addColorStop(0,'#050808');dark.addColorStop(.6,'#0a0b0a');dark.addColorStop(.82,'#3a2215');dark.addColorStop(1,'#8c4b21');
+      ctx.fillStyle=dark;ctx.beginPath();ctx.arc(68,70,32,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#6c3a1c';ctx.lineWidth=6;ctx.stroke();
+      ctx.strokeStyle='#f4c76a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(68,70,37,.65,4.1);ctx.stroke();
+      ctx.strokeStyle='#fff1b64a';ctx.lineWidth=1;
+      for(let i=7;i<=119;i+=19){ctx.beginPath();ctx.moveTo(i,3);ctx.lineTo(i+1,17);ctx.stroke();}
+    }
+    const corners=[[0,0,1,1],[700,0,-1,1],[0,1400,1,-1],[700,1400,-1,-1]];
+    for(const [x,y,fx,fy] of corners){
+      ctx.save();ctx.translate(x,y);ctx.scale(fx,fy);brassPiece();ctx.restore();
+    }
+    function sidePocket(){
+      const g=ctx.createLinearGradient(0,-60,85,70);
+      g.addColorStop(0,'#f7d47c');g.addColorStop(.5,'#ac7528');g.addColorStop(1,'#f7d17f');
+      ctx.fillStyle=g;ctx.strokeStyle='#ffe2a0';ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.moveTo(0,-58);ctx.lineTo(73,-58);ctx.lineTo(73,-26);
+      ctx.arc(39,0,30,-.95,.95,true);
+      ctx.lineTo(73,26);ctx.lineTo(73,59);ctx.lineTo(0,59);ctx.closePath();ctx.fill();ctx.stroke();
+      const p=ctx.createRadialGradient(39,0,3,39,0,34);
+      p.addColorStop(0,'#020706');p.addColorStop(.75,'#130e0b');p.addColorStop(1,'#573019');
+      ctx.fillStyle=p;ctx.beginPath();ctx.arc(40,0,32,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#a26529';ctx.lineWidth=5;ctx.stroke();
+    }
+    for(const x of [0,700]){
+      ctx.save();ctx.translate(x,700);ctx.scale(x===0?1:-1,1);sidePocket();ctx.restore();
+    }
+    // Right wheel: rotating aim by dragging here should not move the cue ball.
+    const w=ctx.createLinearGradient(645,0,699,0);
+    w.addColorStop(0,'#080909e9');w.addColorStop(.24,'#272a2bdc');
+    w.addColorStop(.75,'#535353ec');w.addColorStop(1,'#080909f5');
+    roundedRect(640,844,60,308,19);ctx.fillStyle=w;ctx.fill();
+    ctx.save();ctx.beginPath();ctx.rect(643,846,55,305);ctx.clip();
+    for(let i=0;i<52;i++){
+      const y=851+i*5.8,mid=i%5===0;
+      ctx.strokeStyle=mid?'#121717':'#1b1c1e';ctx.lineWidth=mid?2.3:1.1;
+      ctx.beginPath();ctx.moveTo(mid?657:670,y);ctx.lineTo(698,y);ctx.stroke();
+    }
+    ctx.restore();
+    // The long left slot is the cue power pull-back control.
+    roundedRect(0,837,59,312,10);ctx.fillStyle='#171b1de5';ctx.fill();
+    const s=ctx.createLinearGradient(20,0,35,0);
+    s.addColorStop(0,'#5f4327');s.addColorStop(.45,'#f6de94');s.addColorStop(1,'#8a5b2e');
+    roundedRect(24,855,8,260,3);ctx.fillStyle=s;ctx.fill();
+    if(powerSet>0){
+      ctx.fillStyle='#f0d8a099';
+      roundedRect(18,855,21,Math.min(268,powerSet*2.62),6);ctx.fill();
+    }
   }
   function ballPaint(b){
-    const x=b.x,y=b.y;
-    ctx.fillStyle='#031b16a0';ctx.beginPath();ctx.ellipse(x+4,y+5,R*1.03,R*.72,-.1,0,Math.PI*2);ctx.fill();
-    const grad=ctx.createRadialGradient(x-4,y-5,1,x,y,R*1.25);
-    const id=b.id;let base;
-    if(id===0)base='#f3ece1';
-    else if(id===8)base='#13141c';
-    else if(game.mode==='blackball')base=id<8?'#d93135':'#e8c231';
-    else base=({1:'#f0b521',2:'#276ec9',3:'#cc3532',4:'#6d3f98',5:'#e88429',6:'#2e9a5e',7:'#85262e'})[id<=7?id:id-8];
-    grad.addColorStop(0,id===0?'#ffffff':'#fff7d9');
-    grad.addColorStop(.28,base);grad.addColorStop(1,'#111a19');
-    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#0006';ctx.lineWidth=.8;ctx.stroke();
-    if(id!==0){
-      if(game.mode==='eight'&&id>8){
-        ctx.save();ctx.beginPath();ctx.arc(x,y,R-.8,0,Math.PI*2);ctx.clip();
-        ctx.fillStyle='#fffbef';ctx.fillRect(x-R,y-4.4,2*R,8.8);ctx.restore();
+    const x=b.x,y=b.y,id=b.id;
+    ctx.fillStyle='#020d0ecc';ctx.beginPath();ctx.ellipse(x+4,y+5,R*1.05,R*.91,-.2,0,Math.PI*2);ctx.fill();
+    let base;
+    if(id===0)base='#dedfdb';
+    else if(id===8)base='#111318';
+    else if(game.mode==='blackball')base=id<8?'#ce303a':'#e1ca31';
+    else base=({1:'#edcb2a',2:'#2364a3',3:'#be3038',4:'#603895',5:'#df7428',6:'#218b56',7:'#81323c'})[id<=7?id:id-8];
+    const g=ctx.createRadialGradient(x-6,y-8,1,x+2,y+3,R*1.45);
+    g.addColorStop(0,id===0?'#fff':'#fff9db');
+    g.addColorStop(.2,base);g.addColorStop(.60,base);
+    g.addColorStop(1,id===0?'#636f6b':'#1a1815');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#0f100e52';ctx.lineWidth=.7;ctx.stroke();
+    if(id!==0&&game.mode==='eight'){
+      if(id>8){
+        ctx.save();ctx.beginPath();ctx.arc(x,y,R-.5,0,Math.PI*2);ctx.clip();
+        ctx.fillStyle='#fbf7e9';ctx.fillRect(x-R,y-5,2*R,10);ctx.restore();
       }
-      ctx.fillStyle='#fff9e8';ctx.beginPath();ctx.arc(x,y,5.2,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#1b2220';ctx.font='bold '+(id>=10?6.6:8)+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(id===8?'8':game.mode==='blackball'?'':String(id),x,y+.3);
+      ctx.fillStyle='#f5f4e7';ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#191919';ctx.font='bold 9px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(String(id),x,y+.3);
     }
-    ctx.fillStyle='#fff8';ctx.beginPath();ctx.ellipse(x-4,y-5,2.7,1.5,-.4,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.globalAlpha=.45;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.ellipse(x-6,y-7,4.5,3,-.45,0,Math.PI*2);ctx.fill();ctx.restore();
   }
   function drawGuide(c){
     const dx=Math.cos(aim),dy=Math.sin(aim);
-    // Aim line is clipped at the first encountered object ball.
-    let length=720,collision=null;
+    let length=1400,collision=null;
     for(const b of game.balls){
       if(b.id===0||!b.alive)continue;
       const ox=b.x-c.x,oy=b.y-c.y,project=ox*dx+oy*dy;
-      if(project<0)continue;
+      if(project<=0)continue;
       const side2=ox*ox+oy*oy-project*project;
       if(side2>(2*R)*(2*R))continue;
       const intercept=project-Math.sqrt(Math.max(0,4*R*R-side2));
       if(intercept>=0&&intercept<length){length=intercept;collision=b;}
     }
-    ctx.save();ctx.strokeStyle='#fdfbe9bb';ctx.lineWidth=1.9;ctx.setLineDash([8,8]);
-    ctx.beginPath();ctx.moveTo(c.x+dx*(R+4),c.y+dy*(R+4));
-    ctx.lineTo(c.x+dx*length,c.y+dy*length);ctx.stroke();ctx.restore();
+    // Reference uses a continuous bright white projected aim line.
+    ctx.strokeStyle='#effdf9e3';ctx.lineWidth=2.7;ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(c.x+dx*(R+3),c.y+dy*(R+3));
+    ctx.lineTo(c.x+dx*length,c.y+dy*length);ctx.stroke();
     if(collision){
-      ctx.strokeStyle='#ffffff60';ctx.lineWidth=1.2;
-      ctx.beginPath();ctx.arc(c.x+dx*length,c.y+dy*length,R,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='#f3faf8';ctx.lineWidth=2.6;
+      ctx.beginPath();ctx.arc(c.x+dx*length,c.y+dy*length,R+1,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(c.x+dx*length,c.y+dy*length);
+      ctx.lineTo(c.x+dx*(length+R),c.y+dy*(length+R));ctx.stroke();
     }
-    const power=Number(el('power').value);
-    const offset=31+power*.6,back=260;
-    const x1=c.x-dx*offset,y1=c.y-dy*offset;
-    const x2=c.x-dx*(offset+back),y2=c.y-dy*(offset+back);
-    ctx.save();ctx.lineCap='round';
-    ctx.strokeStyle='#070a09b0';ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(x1+3,y1+3);ctx.lineTo(x2+3,y2+3);ctx.stroke();
+    const power=Number(el('power').value)||0;
+    const offset=34+power*.95,back=420;
+    const x1=c.x-dx*offset,y1=c.y-dy*offset,x2=c.x-dx*(offset+back),y2=c.y-dy*(offset+back);
+    ctx.save();ctx.lineCap='butt';ctx.lineWidth=8;ctx.strokeStyle='#04120e99';
+    ctx.beginPath();ctx.moveTo(x1+2,y1+1);ctx.lineTo(x2+2,y2+1);ctx.stroke();
     const shaft=ctx.createLinearGradient(x1,y1,x2,y2);
-    shaft.addColorStop(0,'#f7e6ba');shaft.addColorStop(.52,'#c89b55');shaft.addColorStop(.53,'#4f352c');shaft.addColorStop(1,'#221d21');
-    ctx.strokeStyle=shaft;ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
-    ctx.strokeStyle='#75b2bb';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-dx*7,y1-dy*7);ctx.stroke();
+    shaft.addColorStop(0,'#c1ded4');shaft.addColorStop(.032,'#f1e1a1');shaft.addColorStop(.36,'#d7ab61');
+    shaft.addColorStop(.72,'#9e673c');shaft.addColorStop(1,'#45291d');
+    ctx.strokeStyle=shaft;ctx.lineWidth=6;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    ctx.strokeStyle='#f1faf6';ctx.lineWidth=7;
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-dx*7,y1-dy*7);ctx.stroke();
     ctx.restore();
   }
   function draw(){
@@ -339,14 +416,37 @@
     e.preventDefault();canvas.setPointerCapture(e.pointerId);
     const p=canvasPos(e);
     if(game.ballInHand){handlePlacement(p.x,p.y);return;}
-    pointerDown=true;aim=Math.atan2(p.y-cue().y,p.x-cue().x);
+    pointerDown=true;dragOrigin=p;startAngle=aim;
+    if(p.x<78&&p.y>815&&p.y<1200){
+      dragMode='power';powerSet=0;el('power').value='0';
+    }else if(p.x>627&&p.y>830&&p.y<1180){
+      dragMode='wheel';
+    }else{
+      dragMode='aim';
+      const dx=p.x-cue().x,dy=p.y-cue().y;
+      if(Math.hypot(dx,dy)>25)aim=Math.atan2(dy,dx);
+    }
   });
   canvas.addEventListener('pointermove',e=>{
     if(!pointerDown||!canShoot())return;
-    const p=canvasPos(e);aim=Math.atan2(p.y-cue().y,p.x-cue().x);
+    const p=canvasPos(e);
+    if(dragMode==='power'){
+      powerSet=Math.max(0,Math.min(100,(p.y-dragOrigin.y)*.52));
+      el('power').value=String(Math.round(powerSet));
+      el('powerValue').textContent=Math.round(powerSet)+'%';
+    }else if(dragMode==='wheel'){
+      aim=startAngle+(p.y-dragOrigin.y)*.0038;
+    }else if(dragMode==='aim'){
+      const dx=p.x-cue().x,dy=p.y-cue().y;
+      if(Math.hypot(dx,dy)>25)aim=Math.atan2(dy,dx);
+    }
   });
-  canvas.addEventListener('pointerup',()=>pointerDown=false);
-  canvas.addEventListener('pointercancel',()=>pointerDown=false);
+  canvas.addEventListener('pointerup',()=>{
+    if(dragMode==='power'&&canShoot()&&powerSet>=3)fire(aim,powerSet);
+    pointerDown=false;dragMode=null;
+  });
+  canvas.addEventListener('pointercancel',()=>{pointerDown=false;dragMode=null;powerSet=0;el('power').value='0';});
+  
   el('power').addEventListener('input',()=>el('powerValue').textContent=el('power').value+'%');
   el('power').addEventListener('change',()=>{if(canShoot()&&Number(el('power').value)>=2)fire(aim,Number(el('power').value));});
   el('shoot').addEventListener('click',()=>fire(aim,Number(el('power').value)));
@@ -361,5 +461,5 @@
     if(e.key===' '){e.preventDefault();fire(aim,Number(el('power').value)||55);}
   });
   window.poolApp={useNetwork,leaveNetwork,receive,sendState:broadcastState,toast,reset};
-  reset('eight');requestAnimationFrame(frame);
+  reset('blackball');requestAnimationFrame(frame);
 })();
