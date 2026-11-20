@@ -1,5 +1,7 @@
 # 8 Ball Pool
 
+> **Important: this is NOT the requested 1:1 reverse-engineered APK.** The existing HTML/Canvas game is a separate approximation, and must not be represented as the original `Billiard.apk` with Bluetooth added. Direct analysis of the original native APK is documented on the [native-apk-reverse-engineering branch](https://github.com/billyke2000s/8-ball-pool-/blob/native-apk-reverse-engineering/NATIVE_APK_RE_ENGINEERING.md). No verified 1:1 Bluetooth-enabled APK has been produced.
+
 An original, touch-friendly pool game reconstructed from technical analysis of the supplied **Billiard.apk**, with an HTML5 Canvas frontend, local Bluetooth play through an Android wrapper, and internet multiplayer through a lightweight WebSocket relay.
 
 > Status: Android preview APK successfully builds and JavaScript multiplayer smoke tests pass. The reconstructed portrait visuals are based on direct inspection of the supplied APK's graphical assets and screenshots; exact physics, device Bluetooth pairing and internet deployments still need real-world testing. This is an independent recreation, not the original APK.
