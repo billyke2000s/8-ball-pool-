@@ -7,7 +7,7 @@
   const FIXED=1/120, FRICTION=212, RESTITUTION=.965, RAIL=.84;
   let game, aim=0, shot=null, moving=false, accumulator=0,lastFrame=0, pointerDown=false;
   let soundOn=true,audio=null,lastCollision=0,noticeTimer=null;
-  let networkRole=null, networkSend=null, connected=false, rackNumber=0;
+  let networkRole=null, networkSend=null, connected=false, rackNumber=0, pendingSnapshot=null;
   const rand=(a,b)=>a+Math.random()*(b-a);
   function ball(id,x,y){return {id,x,y,vx:0,vy:0,alive:true};}
   function colorType(id){if(id===0)return 'cue';if(id===8)return 'black';return id<=7?'low':'high';}
@@ -152,6 +152,7 @@
     c.x=342;c.y=285;
   }
   function finishShot(){
+    const localShot=shot.owner;
     const player=game.turn, other=1-player;
     const first=shot.first, potted=shot.potted.filter(id=>id!==0),black=potted.includes(8);
     const assigned=game.groups[player];
@@ -193,7 +194,8 @@
     game.breakShot=false;
     shot=null;
     redrawUI();
-    if(!moving)broadcastState();
+    if(localShot)broadcastState();
+    else if(pendingSnapshot){const snapshot=pendingSnapshot;pendingSnapshot=null;applySnapshot(snapshot);}
   }
   function handlePlacement(x,y,remote=false){
     if(!game.ballInHand||moving||(!remote&&!ownTurn()))return;
@@ -216,16 +218,19 @@
   function leaveNetwork(){
     connected=false;networkRole=null;networkSend=null;el('connStatus').textContent='● Local two-player';redrawUI();
   }
+  function applySnapshot(obj){
+    game=obj.state;
+    if(obj.rack)rackNumber=obj.rack;
+    game.balls.forEach(b=>{b.vx=0;b.vy=0;});
+    el('mode').value=game.mode;
+    status(game.winner!==null?'Player '+(game.winner+1)+' wins!':'Player '+(game.turn+1)+' to shoot');
+    redrawUI();
+  }
   function receive(obj){
     if(!obj||typeof obj!=='object')return;
-    if(obj.type==='state'&&obj.state&&Array.isArray(obj.state.balls)&&obj.state.balls.length===16&&!moving){
-      game=obj.state;
-      if(obj.rack)rackNumber=obj.rack;
-      game.balls.forEach(b=>{b.vx=0;b.vy=0;});
-      el('mode').value=game.mode;
-      status(game.winner!==null?'Player '+(game.winner+1)+' wins!':'Player '+(game.turn+1)+' to shoot');
-      redrawUI();
-    }else if(obj.type==='shot'&&!moving&&ownTurn()===false)fire(Number(obj.angle),Number(obj.power),true);
+    if(obj.type==='state'&&obj.state&&Array.isArray(obj.state.balls)&&obj.state.balls.length===16){
+      if(moving)pendingSnapshot=obj;else applySnapshot(obj);
+    }else if(obj.type==='shot'&&!moving&&ownTurn()===false&&Number.isFinite(Number(obj.angle)))fire(Number(obj.angle),Number(obj.power),true);
     else if(obj.type==='place'&&!moving&&ownTurn()===false)handlePlacement(Number(obj.x),Number(obj.y),true);
   }
   function setSound(){soundOn=!soundOn;el('sound').textContent=soundOn?'♫ Sound on':'♫ Sound off';el('sound').setAttribute('aria-pressed',String(soundOn));if(soundOn)initAudio();}
