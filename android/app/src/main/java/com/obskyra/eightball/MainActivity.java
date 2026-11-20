@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
         UUID.fromString("6e1b3c71-0d1d-45a1-965c-8c7ddba1f890");
     private static final int PERMISSION_BT = 1021;
     private final ExecutorService io = Executors.newCachedThreadPool();
+    private final ExecutorService sendIo = Executors.newSingleThreadExecutor();
     private final Object writeLock = new Object();
     private WebView web;
     private BluetoothAdapter adapter;
@@ -85,11 +86,14 @@ public class MainActivity extends Activity {
     }
     private void checkPermission(Runnable action){
         if(adapter==null){status("error","Bluetooth hardware not available");return;}
-        if(!adapter.isEnabled()){status("error","Enable Bluetooth in Android Settings first");return;}
+        Runnable validated=()->{
+            if(!adapter.isEnabled()){status("error","Enable Bluetooth in Android Settings first");return;}
+            action.run();
+        };
         if(Build.VERSION.SDK_INT>=31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)!=PackageManager.PERMISSION_GRANTED){
-            pendingPermission=action;
+            pendingPermission=validated;
             requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},PERMISSION_BT);
-        }else action.run();
+        }else validated.run();
     }
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
         super.onRequestPermissionsResult(requestCode,permissions,results);
@@ -193,7 +197,7 @@ public class MainActivity extends Activity {
         }
         @JavascriptInterface public void send(String message){
             if(message==null||message.length()>16000)return;
-            io.execute(()->{
+            sendIo.execute(()->{
                 synchronized(writeLock){
                     if(writer==null)return;
                     try{writer.write(message);writer.newLine();writer.flush();}
@@ -205,6 +209,7 @@ public class MainActivity extends Activity {
     @Override public void onDestroy(){
         disconnectInternal();
         io.shutdownNow();
+        sendIo.shutdownNow();
         if(web!=null){web.removeJavascriptInterface("AndroidBridge");web.destroy();web=null;}
         super.onDestroy();
     }
