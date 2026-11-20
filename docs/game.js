@@ -36,7 +36,7 @@
     noticeTimer=setTimeout(()=>{n.hidden=true;},ms);
   }
   function ownTurn(){return !connected || (game.turn===(networkRole==='host'?0:1));}
-  function canShoot(){return !moving&&!game.winner&&ownTurn()&&!game.ballInHand;}
+  function canShoot(){return !moving&&game.winner===null&&ownTurn()&&!game.ballInHand;}
   function groupName(g){
     if(!g)return 'Open table';
     if(game.mode==='blackball')return g==='low'?'Reds':'Yellows';
@@ -322,7 +322,7 @@
       ctx.strokeStyle='#ebf5e9a0';ctx.setLineDash([4,5]);ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
     }
     for(const b of game.balls)if(b.alive)ballPaint(b);
-    if(!moving&&!game.winner&&cue().alive&&!game.ballInHand&&ownTurn())drawGuide(cue());
+    if(!moving&&game.winner===null&&cue().alive&&!game.ballInHand&&ownTurn())drawGuide(cue());
   }
   function frame(t){
     if(!lastFrame)lastFrame=t;
@@ -335,7 +335,7 @@
     return {x:(event.clientX-rect.left)*W/rect.width,y:(event.clientY-rect.top)*H/rect.height};
   }
   canvas.addEventListener('pointerdown',e=>{
-    if(!ownTurn()||moving||game.winner)return;
+    if(!ownTurn()||moving||game.winner!==null)return;
     e.preventDefault();canvas.setPointerCapture(e.pointerId);
     const p=canvasPos(e);
     if(game.ballInHand){handlePlacement(p.x,p.y);return;}
