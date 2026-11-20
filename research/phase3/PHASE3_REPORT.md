@@ -15,6 +15,7 @@ Source: user-provided original APK SHA-256 `d91843d6675d0787e65c4b089edca7e159c1
 | `x00.d/e/f/g/h/i/j`, `k7.a` | Original 16-entry special opening-break vector table, angular weights, speed factors and energy redistribution |
 | `t40.v`, `ia.a` | Existing native rolling decay and nonlinear cue-power constants retained |
 | `wh.n`, `ko.J` | Corrected input threshold to the native 1.7% power minimum |
+| `ia.a()`, `y7.b()` | Recovered 20 ms pull/return cue animation ticks and 40 ms impact hold, with 18/50/3/9 scaled movement constants |
 
 A guarded `localStorage` implementation also remembers optional mode, players, sound, difficulty, and speed settings; the Android game uses SharedPreferences.
 
@@ -28,6 +29,7 @@ A guarded `localStorage` implementation also remembers optional mode, players, s
 - Same break is deterministic across repeats
 - Numbered-ball break settles with finite velocities and positions
 - Mobile-size viewport correctly operates menu, game mode and pull-back power shot
+- Cue animation advanced for 57 fixed simulation ticks (~380 ms), then imparted the source-derived impulse
 
 The delivered HTML is one file (43 image assets + 5 sounds), about 1.1 MB; no external scripts or stylesheets.
 
