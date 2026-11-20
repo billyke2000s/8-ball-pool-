@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10191a"><title>8 Ball Pool</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+<header><div class="brand"><span class="brandball">8</span><div><h1>8 BALL <span>POOL</span></h1><small>Classic billiards • local & multiplayer</small></div></div><button id="sound" class="iconbutton" aria-label="Toggle sound" aria-pressed="true">♫ Sound on</button></header>
+<section class="scoreboard" aria-live="polite"><div class="player" id="p0"><span class="player-index">01</span><div><b>Player 1</b><span id="g0">Open table</span></div></div><div class="middle"><small id="round">RACK 01</small><b id="message">Break to start</b></div><div class="player" id="p1"><span class="player-index">02</span><div><b>Player 2</b><span id="g1">Open table</span></div></div></section>
+<section class="board"><canvas id="pool" width="1100" height="570" aria-label="Interactive pool table"></canvas><div id="notice" class="notice" role="status" hidden></div></section>
+<section class="controls"><div class="aim"><span>↗</span><div><b>Aim on the table</b><small>Drag to rotate the cue • pull back power to shoot</small></div></div><div class="power"><label for="power">POWER <output id="powerValue">0%</output></label><input id="power" type="range" min="0" max="100" value="0" step="1"><button id="shoot" class="primary">SHOOT</button></div></section>
+<section class="options"><label>Game type <select id="mode"><option value="eight">8-ball: solids / stripes</option><option value="blackball">Blackball: red / yellow</option></select></label><button id="restart">↻ New rack</button><button id="place" hidden>Place cue ball</button><span id="connStatus" class="connection">● Local two-player</span></section>
+<details class="multiplayer"><summary>Play with a friend <span>Bluetooth · internet rooms</span></summary><div class="multigrid"><div><h2>Internet multiplayer</h2><p>Use the same room code and relay address on both devices.</p><label>Relay URL <input id="relay" type="url" value="ws://localhost:8080" placeholder="wss://pool.your-domain.com"></label><label>Room code <input id="room" maxlength="12" value="" placeholder="e.g. BLUE8"></label><div class="actions"><button id="onlineHost">Create room</button><button id="onlineJoin">Join room</button></div></div><div><h2>Nearby Bluetooth</h2><p>Pair Android phones in Settings first. Available in the Android app, not a normal browser.</p><div class="actions"><button id="btHost">Host Bluetooth</button><button id="btJoin">Join paired device</button></div><p id="btHint" class="hint"></p></div></div><button id="disconnect" class="textbutton">Disconnect multiplayer</button></details>
+<footer>Original implementation based on analysis of supplied Android APK. No extracted commercial assets used.</footer>
+</main><script src="game.js"></script><script src="network.js"></script></body></html>
