@@ -34,7 +34,7 @@ function advance(clients,start,end){
 }
 test('local game bootstraps and shot turns over',()=>{
   const p=makeClient();
-  assert.equal(p.element('message').textContent,'Break to start');
+  assert.equal(p.element('message').textContent,'Your turn!');
   p.element('power').value='55';p.element('shoot').handlers.click();
   assert.equal(p.element('message').textContent,'Balls in motion');
   advance([p],1,1200);
