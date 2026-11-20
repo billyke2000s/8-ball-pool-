@@ -2,11 +2,11 @@
 
 An original, touch-friendly pool game reconstructed from technical analysis of the supplied **Billiard.apk**, with an HTML5 Canvas frontend, local Bluetooth play through an Android wrapper, and internet multiplayer through a lightweight WebSocket relay.
 
-> Status: working source implementation; Android build, Bluetooth device pairing and online deployments still require device / server testing. No APK or hosted relay is claimed here.
+> Status: Android preview APK successfully builds and JavaScript multiplayer smoke tests pass. The reconstructed portrait visuals are based on direct inspection of the supplied APK's graphical assets and screenshots; exact physics, device Bluetooth pairing and internet deployments still need real-world testing. This is an independent recreation, not the original APK.
 
 ## Play
 - Open `docs/index.html` in a modern desktop or mobile browser for local two-player play.
-- Switch between **8-ball (solids/stripes)** and **Blackball (red/yellow)**; aim by dragging on the table and set power using the slider, then release or tap **Shoot**.
+- The default portrait Blackball table has five balls across the top of the rack, a continuous aiming line, gold pockets, wood rails and red/yellow balls. Tap/drag on the table to aim; use the **right precision wheel** for fine aiming, or pull down and release the **left power bar** to shoot. Change modes and multiplayer settings through the top-right menu. An 8-ball solids/stripes option is also included.
 - With a configured WebSocket server, create a room on one device and join with the same code on a second device.
 - For Bluetooth, build/install `android/` on both Android phones. Pair devices in Android settings first, then choose **Host Bluetooth** on one and **Join Bluetooth** on the other. Bluetooth is *nearby*, not internet access.
 
@@ -31,7 +31,7 @@ Examined the user-supplied APK locally, not an online source repository:
 The publicly committed code and artwork are independently written/generated and **do not include** the proprietary APK, decompiled game code, or extracted artwork/audio.
 
 ## Limitations and testing
-- The local HTML game has been designed for modern browsers. Test on target devices before publishing an APK.
+- The portrait Android preview compiles in GitHub Actions and passes basic simulated gameplay/state tests. Its rendering and Bluetooth networking are not yet verified on physical phones; do not advertise it as exact parity.
 - Internet multiplayer depends on a running relay and reliable connectivity; the sample relay has no accounts, matchmaking, persistent rooms, anti-cheat or TURN infrastructure.
 - Bluetooth is paired-device multiplayer in the native Android wrapper only, not a way to reach remote devices over the internet.
 - This is an initial implementation, not a claim of exact physics fidelity to the original binary.
