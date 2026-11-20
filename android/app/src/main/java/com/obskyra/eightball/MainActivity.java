@@ -56,6 +56,9 @@ public class MainActivity extends Activity {
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        // Keep Android system bars black like the supplied APK's portrait table.
+        getWindow().setStatusBarColor(android.graphics.Color.BLACK);
+        getWindow().setNavigationBarColor(android.graphics.Color.BLACK);
         BluetoothManager manager=(BluetoothManager)getSystemService(BLUETOOTH_SERVICE);
         adapter=manager==null?null:manager.getAdapter();
         web=new WebView(this);
