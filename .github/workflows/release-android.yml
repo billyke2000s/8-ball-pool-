@@ -31,8 +31,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      # GitHub's ubuntu-latest runners already include the Android command-line SDK.
+      # android-actions/setup-android@v3 attempts to install removed package 'tools'.
+      - name: Check Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          sdkmanager --version
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
