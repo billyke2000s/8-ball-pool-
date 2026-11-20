@@ -12,8 +12,11 @@ function emit(ws,message){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.str
 function clean(ws){
   const room=ws.room;
   if(!room)return;
-  if(room.host===ws){room.host=null;emit(room.guest,{type:'peer_left'});}
-  if(room.guest===ws){room.guest=null;emit(room.host,{type:'peer_left'});}
+  if(room.host===ws){
+    room.host=null;
+    if(room.guest){emit(room.guest,{type:'peer_left'});room.guest.room=null;room.guest.roomCode=null;room.guest.role=null;room.guest=null;}
+    rooms.delete(ws.roomCode);
+  } else if(room.guest===ws){room.guest=null;emit(room.host,{type:'peer_left'});}
   if(!room.host&&!room.guest)rooms.delete(ws.roomCode);
   ws.room=null;ws.roomCode=null;ws.role=null;
 }
