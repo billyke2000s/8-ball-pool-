@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const test=require('node:test');
+const math=require('./native_math.js');
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} vs ${b}`);
+test('speed and damping from t40.v',()=>{near(math.gameSpeedConfig(2).velocityMultiplier,2);near(math.gameSpeedConfig(2).rollingDecay,Math.pow(.993,1.75));});
+test('original rack pitch from mt',()=>near(math.rackGeometry(35,700,1400).pitch,35+700/480));
+test('original shot curve from ia',()=>near(math.nativeCueVelocity(.5,2,700,1400),Math.pow(.5,1.12)*2*400*700/480));
+test('frame time from wh.onDraw',()=>near(math.nativeMoveInterval(15),.095625));
+test('s8.c roots',()=>assert.deepEqual(math.eventRoots(1,-6,8),[4,2]));
+test('k7.r ordinary collision',()=>near(math.nativeBallCollision({x:0,y:0,vx:0,vy:0},{x:35,y:0,vx:-10,vy:0}).first.vx,-9.9));
+test('k7.V stop speed',()=>near(math.nativeStopVelocitySq(700,1400),Math.pow(3*700/480,2)*.3));
