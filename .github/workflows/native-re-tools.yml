@@ -1,0 +1,27 @@
+name: Native APK reverse-engineering toolchain
+on:
+  push:
+    branches: [native-apk-reverse-engineering]
+    paths: ['.github/workflows/native-re-tools.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned APK analysis tools
+        run: |
+          curl --fail --location --retry 3 -o apktool.jar "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar"
+          curl --fail --location --retry 3 -o jadx.zip "https://github.com/skylot/jadx/releases/download/v1.5.7/jadx-1.5.7.zip"
+          test -s apktool.jar
+          test -s jadx.zip
+          unzip -t jadx.zip | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-re-toolchain
+          path: |
+            apktool.jar
+            jadx.zip
+          if-no-files-found: error
