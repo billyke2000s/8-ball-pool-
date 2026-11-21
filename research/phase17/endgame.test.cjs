@@ -1,0 +1,16 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {pyramidGameOver,soloVictoryScore}=require('./endgame.js');
+const balls=()=>Array.from({length:16},(_,id)=>({id,active:true,nativeHitLinked:false}));
+const game=(mode,playerMode)=>({mode,playerMode,balls:balls(),strikerId:0,selectingRemoval:false,scores:[0,0]});
+test('Free solo does not end at eight',()=>{let g=game('free','solo');g.scores=[8,0];assert.equal(pyramidGameOver(g),false);});
+test('Free competitive ends at eight',()=>{let g=game('free','local');g.scores=[8,0];assert.equal(pyramidGameOver(g),true);});
+test('Combo solo does not end at eight',()=>{let g=game('combo','solo');g.scores=[8,0];assert.equal(pyramidGameOver(g),false);});
+test('Combo one ball and choosing terminates',()=>{let g=game('combo','local');g.balls.forEach(b=>b.active=b.id===0||b.id===1);g.selectingRemoval=true;assert.equal(pyramidGameOver(g),true);});
+test('Combo one ball without choosing continues',()=>{let g=game('combo','local');g.balls.forEach(b=>b.active=b.id===0||b.id===1);assert.equal(pyramidGameOver(g),false);});
+test('Combo last object potted terminates',()=>{let g=game('combo','local');g.balls.forEach(b=>b.active=b.id===0);assert.equal(pyramidGameOver(g),true);});
+test('Free keeps a recently contacted potted ball counted',()=>{let g=game('free','local');g.balls.forEach(b=>{b.active=b.id===0;b.nativeHitLinked=b.id===1});assert.equal(pyramidGameOver(g),false);});
+test('Free ends after contact references cleared',()=>{let g=game('free','local');g.balls.forEach(b=>b.active=b.id===0);assert.equal(pyramidGameOver(g),true);});
+test('Solo score decreases with time',()=>{const v={shots:12,fouls:2,friction:2,pool:false};assert.ok(soloVictoryScore({...v,elapsedMs:15000})>soloVictoryScore({...v,elapsedMs:90000}));});
+test('Pool score gets the native 10x multiplier',()=>{const v={elapsedMs:30000,shots:5,fouls:0,friction:2};assert.ok(soloVictoryScore({...v,pool:true})>soloVictoryScore({...v,pool:false})*9);});
+test('Native minimum score of seven',()=>{assert.equal(soloVictoryScore({elapsedMs:1e9,shots:1000,fouls:500,friction:8,pool:false}),7);});
