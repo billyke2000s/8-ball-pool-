@@ -1,0 +1,2031 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#060a0b">
+<title>TEST FIXTURE — Billiard — Native Pool Events and Targeting v16</title>
+<style>
+:root{color-scheme:dark;font-family:Roboto,'Arial',system-ui,sans-serif;background:#050708;color:#e8ebe9}
+*{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;height:100dvh;overflow:hidden;background:#050708}
+body{display:grid;place-items:center}button,input,select,textarea{font:inherit}
+#game{position:relative;height:min(100dvh,200vw);width:min(100vw,50dvh);background:#060c0e;overflow:hidden;touch-action:none;isolation:isolate}
+#table{width:100%;height:100%;display:block;touch-action:none}
+#turn{position:absolute;left:19%;top:0;z-index:3;padding:1px 7px 4px;background:#111114c9;color:#fff;font-size:clamp(13px,3.2vw,23px);font-weight:400;pointer-events:none;white-space:nowrap}
+#menuToggle{position:absolute;top:12.3%;right:0;width:9%;height:7%;max-height:55px;min-height:40px;z-index:5;cursor:pointer;background:#353535b6;border:1px solid #6665;border-radius:8px 0 0 8px;padding:8px 4px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+#menuToggle i{display:block;width:85%;height:5px;border-radius:5px;background:#979797}
+#notice{position:absolute;z-index:7;left:50%;top:47%;transform:translate(-50%,-50%);max-width:88%;padding:12px 18px;border-radius:9px;white-space:pre-line;text-align:center;font-size:clamp(14px,3vw,22px);background:#181a1ce9;border:1px solid #8c7c64;pointer-events:none}
+[hidden]{display:none!important}
+#screenOverlay{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:14px;background:#050708bf;backdrop-filter:blur(3px)}
+#panel{position:relative;max-height:min(93dvh,900px);overflow-y:auto;width:min(440px,100%);padding:18px 18px 22px;border-radius:12px;background:linear-gradient(140deg,#222324,#101819);border:1px solid #8c7044;box-shadow:0 24px 70px #000c}
+#panel header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:8px}#panel h1{font-size:23px;margin:0;letter-spacing:.02em}#panel .sub{color:#b5c3bf;font-size:12px;margin-top:4px}#close{border:1px solid #575957;background:#303537;border-radius:6px;width:40px;height:40px;color:#eee;font-size:24px}
+#panel .group{border-top:1px solid #434745;margin-top:15px;padding-top:14px}#panel .group>strong{display:block;font-size:15px;margin-bottom:10px}
+#panel label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#c5d1cf;margin:9px 0}#panel button,#panel select,#panel input,#panel textarea{color:#e5ece8;background:#2c3837;border:1px solid #596e66;border-radius:7px;min-height:38px;padding:8px 10px}
+#panel textarea{width:100%;min-height:62px;resize:vertical;word-break:break-word;font-family:monospace;font-size:11px}#panel select{width:100%}#panel .buttons{display:flex;gap:8px;flex-wrap:wrap}#panel .buttons button{flex:1;min-width:102px}#panel button.primary{background:#8a662f;border-color:#b08c56;color:#fff}
+#panel p{font-size:12px;line-height:1.45;color:#b6c5c0;margin:8px 0}#panel output{font-size:12px;color:#badabf}#panel summary{font-weight:bold;cursor:pointer;font-size:14px}#panel details{border-top:1px solid #464e49;padding:13px 0}
+#panel footer{font-size:11px;color:#a9b5b2;line-height:1.45;margin-top:13px}
+#panel button:focus-visible,#panel input:focus-visible,#panel select:focus-visible,#menuToggle:focus-visible{outline:3px solid #d9b96b;outline-offset:2px}
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#panel .native-rules{margin-top:12px;padding:10px;background:#101b1b;border:1px solid #354645;border-radius:8px}
+#panel .native-rules strong{display:block;font-size:13px;color:#c9d7cc}
+#panel label.rulecheck{flex-direction:row;align-items:flex-start;gap:9px;line-height:1.4;margin:9px 0}
+#panel .rulecheck input{width:17px;height:17px;min-height:auto;flex:0 0 auto;margin:0;accent-color:#b29454}
+@media(min-aspect-ratio:8/9){#game{height:100dvh;width:min(50dvh,100vw)}}
+#strikerChoice{position:fixed;inset:0;z-index:20;background:#0008;display:grid;place-items:center}
+#strikerChoice>div{background:#20252b;color:white;padding:20px;border-radius:12px;max-width:90vw}
+</style>
+</head>
+<body>
+<main id="game">
+ <canvas id="table" width="700" height="1400" aria-label="Original-asset billiards table. Aim by dragging on felt, use the right aiming wheel, drag down the left power bar and release to shoot."></canvas>
+ <div id="turn" role="status">Your turn!</div>
+ <button id="menuToggle" aria-label="Open game settings" aria-expanded="false"><i></i><i></i><i></i></button>
+ <div id="notice" role="status" hidden></div>
+</main>
+<div id="strikerChoice" hidden role="dialog" aria-modal="true" aria-label="Aim or choose ball">
+ <div><p>Aim at this ball or use it as the striker?</p>
+ <button id="aimAtStriker">Aim</button> <button id="chooseStriker">Choose ball</button>
+ <button id="cancelStrikerChoice">Cancel</button></div>
+</div>
+<div id="screenOverlay" hidden>
+ <section id="panel" role="dialog" aria-modal="true" aria-label="Billiards menu">
+  <header><div><h1>Pool Billiards</h1><div class="sub">Original APK resources • HTML reconstruction</div></div><button id="close" aria-label="Close menu">×</button></header>
+  <div class="group"><strong>Game</strong>
+   <label>Original game rules<select id="ballSet"><option value="free">Free Pyramid — numbered balls</option><option value="combo">Combo Pyramid — numbered balls</option><option value="blackball" selected>Pool (8-Ball) — red/yellow/black</option></select></label>
+   <label>Players<select id="players"><option value="local">Two players • same device</option><option value="cpu">You vs computer</option><option value="solo">Single player practice</option></select></label>
+   <div class="buttons"><button id="newRack" class="primary">New game / rack</button><button id="soundToggle">Sound: on</button></div>
+   <label>Ball speed / friction<input id="friction" type="range" min="0" max="8" value="2"><output id="frictionValue">Original setting 2</output></label>
+   <label>Original pocket size<select id="pocketSize">
+      <option value="10">Small</option>
+      <option value="20" selected>Normal</option>
+      <option value="30">Large</option>
+   </select></label>
+   <label>Computer difficulty<select id="difficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+   <div class="native-rules" aria-label="Original game rules">
+     <strong>Pool (8-Ball) options</strong>
+     <label class="rulecheck"><input id="suitOnFirstStrike" type="checkbox"> Choose red/yellow suit from a ball potted on the break</label>
+     <label class="rulecheck"><input id="resetBlackOnBreak" type="checkbox" checked> Re-spot black ball pocketed on the break</label>
+     <label class="rulecheck"><input id="loseIfScratchOnBlack" type="checkbox" checked> Lose when scratching after clearing your suit</label>
+     <strong>Pyramid options</strong>
+     <label>Foul penalty<select id="pyramidPenalty"><option value="0">Player loses 1 point</option><option value="1">Opponent gets 1 point</option></select></label>
+     <div class="sub" id="pyramidScore">Player 1: 0 · Player 2: 0</div>
+   </div>
+  </div>
+  <details id="nativeAimingSettings"><summary>Original aiming options</summary>
+    <label><span><input id="aimingLines" type="checkbox" checked> Show aiming line (original setting 2)</span></label>
+    <label><span><input id="aimingWheel" type="checkbox" checked> Show precision wheel</span></label>
+    <label><span><input id="tapToAim" type="checkbox"> Tap to aim</span></label>
+    <label><span><input id="tapToShoot" type="checkbox"> Tap power bar to shoot</span></label>
+    <p>These map to the original GameActivity preferences. Exact Android gesture timing still needs native comparison.</p>
+   </details>
+   <div class="group"><strong>Controls</strong><p>Rotate the cue by dragging on the felt. The dark wheel on the right offers fine aiming. Pull the power bar on the left downward, then release to strike. Tap the cue ball during ball-in-hand to reposition it. Desktop: ←/→ aim, ↑/↓ power, Space to shoot.</p></div>
+  <details id="online"><summary>Internet two-player • peer-to-peer (experimental)</summary>
+   <p>Two browsers can connect directly with a manual offer/answer. A STUN server is used for NAT discovery when available. This is not Bluetooth; browser Bluetooth cannot host the original Android Bluetooth Classic connection.</p>
+   <div class="buttons"><button id="makeOffer">Create invitation (host)</button><button id="makeAnswer">Join invitation</button><button id="takeAnswer">Accept answer</button></div>
+   <label>Copy this invitation/answer to your friend<textarea id="outSignal" readonly aria-label="Outgoing invite"></textarea></label>
+   <label>Paste received invitation/answer<textarea id="inSignal" aria-label="Received invite"></textarea></label>
+   <div class="buttons"><button id="copySignal">Copy my code</button><button id="endNetwork">Disconnect</button></div><output id="networkState">Not connected</output>
+  </details>
+  <footer>The original APK assets and audio are embedded in this HTML. The three rule-set labels and numbered-ball racks now follow the recovered native game rules. Native Free/Combo Pyramid striker selection, three-sample aiming, score calculation and pocket-event rule timing are partly translated; remaining foul callbacks and platform timing remain adaptations. The ball-in-pocket animation and black-ball re-spot routines now follow the original recovered methods. Ball geometry, the native nonlinear shot-power formula, stopping threshold and collision impulses have been translated from decompiled methods. Android-specific threading, physics edge cases and every historical rule variation are not bit-for-bit reproducible here. Browser output should not be described as the original app or an exact 1:1 port.</footer>
+ </section>
+</div>
+<script>
+/* HEADLESS TEST FIXTURE ONLY: dimension-matched solid SVG placeholders; no APK artwork or sound. */
+const ORIGINAL_ASSETS = {"arrow":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NiIgaGVpZ2h0PSI1NSI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","arrow_tutorial":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NiIgaGVpZ2h0PSI1NSI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball00":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball01":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball02":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball03":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball04":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball05":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball06":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball07":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball08":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball09":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball10":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball11":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball12":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball13":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball14":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball15":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball_black":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball_red":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball_shadow":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MSIgaGVpZ2h0PSIzOCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball_white":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","ball_yellow":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","btn_go_up":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","checkmark":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMTQ4Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","cue":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDAwIiBoZWlnaHQ9IjY0Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","pocket_corner":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","pocket_middle":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNjAiIGhlaWdodD0iMTgwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","rail1":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OTAiIGhlaWdodD0iMTY1Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","rail2":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OTAiIGhlaWdodD0iMTY1Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","rail4":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OTAiIGhlaWdodD0iMTY1Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","rail_blue":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIzNiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","rail_wood":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2OTAiIGhlaWdodD0iMTI2Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","rotate_yellow":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MiIgaGVpZ2h0PSI5MiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","settings_up":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","settings_up_fscr":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTYiIGhlaWdodD0iMTk2Ij48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","shadow_corner":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4OCIgaGVpZ2h0PSIxMDEiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiM3NzciLz48L3N2Zz4=","shadow_middle_pocket":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MyIgaGVpZ2h0PSIzNyI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","shadow_rail":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzNyIgaGVpZ2h0PSIzMSI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","table_field":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MzIiIGhlaWdodD0iMzQwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","table_field_blue":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MDAiIGhlaWdodD0iNDgwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjNzc3Ii8+PC9zdmc+","turn_left_up":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg==","turn_right_up":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzc3NyIvPjwvc3ZnPg=="};
+</script>
+<script>
+(() => {
+'use strict';
+/*
+ * v16: k7.q() first-colour pocket callbacks and wh.m(false) immediate fouls;
+ *      ho.b()/ho.c()/ho.g() legal object/black selection for native AI.
+ * v15: k7.q/wh.m pocket-time black legality and white scratch timing.
+ * v14: wh.n()/ha.v moving-average touch aim, t00.A angle wrap,
+ *      u7.j()/b3.r native 3-sample precision-wheel sensitivity.
+ * v13: ha.f/wh.l native striker switching for Free Pyramid; k7.q/wh.k0/wh.u/wh.r
+ *      Combo Pyramid's 1200ms select-to-remove mechanic; ho.h scoreboard.
+ * v12: native game_rules_array Free/Combo Pyramid and Pool; wh.s exact rack
+ *      order; ho.h and wh.i pyramid scoring; k7.q suit selection switch.
+ * v11: pocket size/physical capture radii are translated from mt.i/q + ei.
+ * One-file HTML port, grounded in the exact APK recovered source:
+ *   mt.java: 30-degree triangular rack coordinates, table rectangle.
+ *   k7.java: equal-mass ball collision resolves the normal component and
+ *            multiplies velocities by 0.99; pocket/rail collision dispatch;
+ *            k(): motion stopping threshold and collision step.
+ *   s8.java: quadratic time-to-contact root handling.
+ *   l30.java: m() predicts and selects the earliest collision event.
+ *   ia.java: a() uses pow(ko.J,1.12) * ia.i * 400 * k7.W for cue velocity.
+ *   t40.java: T = pow(0.995 - .001 * speedSetting, 1.75), with default 2.
+ *   wh.java: two-player/CPU/single modes, cue-ball turns, rules and asset set.
+ *   ha.java: rotated 1400x64 cue bitmap and projected aiming line.
+ *   ko.java: side power-pull controller and aim adjustment.
+ * HTML Canvas has different timing, geometry and input APIs; portions below
+ * are necessarily reimplemented, rather than executed Dalvik instructions.
+ */
+const $ = id => document.getElementById(id);
+const canvas=$('table'), ctx=canvas.getContext('2d',{alpha:false});
+const W=700,H=1400;
+const FIELD={left:74,right:626,top:78,bottom:1322};
+const BALL_R=17.5,DIAM=BALL_R*2,PI=Math.PI,TWOPI=PI*2;
+// Decompiled mt.<init>: rack balls are separated by ball diameter + min(F,G)/480.
+const NATIVE_RACK_PITCH=DIAM+Math.min(W,H)/480;
+// Decompiled k7 static constants / mt.<init> derive the stop threshold from W.
+const NATIVE_W=Math.min(W,H)/480;
+const NATIVE_STOP_SPEED=Math.sqrt((3*NATIVE_W)**2*.3)*6.375;
+// k7.J is measured frame duration (ms) * 0.006375, hence for pixel/s
+// velocities convert original k7.i/j units using 6.375 pixels/s per unit.
+// This is native formula mapping; HTML's frame clock is not identical to Android.
+const NATIVE_SPEED_TO_PX_PER_SEC=6.375;
+const POCKETS=[{x:70,y:71,type:'corner'},{x:630,y:71,type:'corner'},
+ {x:70,y:700,type:'middle'},{x:630,y:700,type:'middle'},
+ {x:70,y:1329,type:'corner'},{x:630,y:1329,type:'corner'}];
+const IMG={},AUDIO={}; let assetsReady=false;
+const audioKeys=['cue_strike','balls_collide','ball_in_pocket','applause'];
+let lastCollision=0;
+for(const [name,uri] of Object.entries(ORIGINAL_ASSETS)) {
+ if(audioKeys.includes(name)){AUDIO[name]=uri;continue;}
+ const im=new Image();IMG[name]=im;im.src=uri;
+}
+const required=['cue','table_field_blue','rail2','pocket_corner','pocket_middle','ball_red','ball_yellow','ball_black','ball_white'];
+Promise.all(required.map(n=>new Promise(resolve=>{const im=IMG[n];if(im.complete && im.naturalWidth)resolve();else{im.onload=resolve;im.onerror=resolve;}}))).then(()=>assetsReady=true);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const hypot=Math.hypot;
+const rad=(degrees)=>degrees*PI/180;
+function playSound(id,volume=1){
+ if(!game.sound||!AUDIO[id])return;
+ const t=performance.now();if(id==='balls_collide'&&t-lastCollision<42)return;
+ if(id==='balls_collide')lastCollision=t;
+ try{const a=new Audio(AUDIO[id]);a.volume=clamp(volume,0,1);a.play().catch(()=>{});}catch(_error){}
+}
+let game,aim=-PI/2,power=0,pointerId=null,pointerMode=null,origin=null,previous=null;
+let aimTouchAngle=0,aimDeltaIndex=0,aimDeltas=[0,0,0],wheelDeltaIndex=0,wheelDeltas=[0,0,0];
+let dragging=false, accumulator=0,lastFrame=0,shot=null,localShot=false,noticeTimeout=0,cpuTimeout=0,removalTimeout=0;
+let pocketFX=[],remoteSync=null,channel=null,rtc=null,role='local';
+let smoothedDrawMs=15,drawAverageCount=1;
+let playerMode='local',ballSet='blackball';
+const settings={friction:2,difficulty:'normal',pocketSize:20,sound:true,aimingLines:2,aimingWheel:true,tapToAim:false,tapToShoot:false};
+// From GameActivity: aiming_lines=2, aiming_wheel=false, tap_to_aim=false,
+// tap_to_shoot=false. Show the wheel initially here to match user's APK screenshot.
+
+// The native version persists options through t40.SharedPreferences. In a
+// standalone file these are stored locally, with private-mode safe fallback.
+function savePreferences(){
+ try{localStorage.setItem('billiard_native_port_preferences',JSON.stringify({
+  ballSet:$('ballSet').value,players:$('players').value,
+  friction:Number($('friction').value),pocketSize:Number($('pocketSize').value),difficulty:$('difficulty').value,sound:settings.sound,
+  aimingLines:$('aimingLines').checked?2:0,
+  aimingWheel:$('aimingWheel').checked,tapToAim:$('tapToAim').checked,
+  tapToShoot:$('tapToShoot').checked,
+  suitOnFirstStrike:$('suitOnFirstStrike').checked,pyramidPenalty:Number($('pyramidPenalty').value),
+  resetBlackOnBreak:$('resetBlackOnBreak').checked,
+  loseIfScratchOnBlack:$('loseIfScratchOnBlack').checked
+ }));}catch(_error){}
+}
+function loadPreferences(){
+ try{
+  const v=JSON.parse(localStorage.getItem('billiard_native_port_preferences')||'null');
+  if(!v||typeof v!=='object')return;
+  if(['blackball','free','combo'].includes(v.ballSet))$('ballSet').value=v.ballSet;
+  if(['local','cpu','solo'].includes(v.players))$('players').value=v.players;
+  if(Number.isInteger(v.friction)&&v.friction>=0&&v.friction<=8)$('friction').value=String(v.friction);
+  if([10,20,30].includes(v.pocketSize))$('pocketSize').value=String(v.pocketSize);
+  if(['easy','normal','hard'].includes(v.difficulty))$('difficulty').value=v.difficulty;
+  if(typeof v.sound==='boolean')settings.sound=v.sound;
+  if(v.aimingLines===0||v.aimingLines===2)$('aimingLines').checked=v.aimingLines===2;
+  for(const key of ['aimingWheel','tapToAim','tapToShoot'])
+   if(typeof v[key]==='boolean')$(key).checked=v[key];
+  if(typeof v.suitOnFirstStrike==='boolean')$('suitOnFirstStrike').checked=v.suitOnFirstStrike;
+  if([0,1].includes(v.pyramidPenalty))$('pyramidPenalty').value=String(v.pyramidPenalty);
+  if(typeof v.resetBlackOnBreak==='boolean')$('resetBlackOnBreak').checked=v.resetBlackOnBreak;
+  if(typeof v.loseIfScratchOnBlack==='boolean')$('loseIfScratchOnBlack').checked=v.loseIfScratchOnBlack;
+ }catch(_error){}
+}
+
+let cueRetraction=0, cueAnimation=0, strike=null;
+function ball(id,x,y,color){return {id,x,y,vx:0,vy:0,active:true,color};}
+function initialBalls(mode) {
+ const balls=[ball(0,350,1040,'white')];
+ if(mode==='blackball'){
+  // Recovered 30-degree rack geometry from mt.m0, in orientation y7.z=false:
+  // 1, 2, 3, 4, 5 balls from cue-side apex to far side.
+  // Layout by the game's user-provided screenshot (7 red, 7 yellow, 1 black).
+  const rows=[['r'],['y','r'],['r','b','y'],['y','r','y','r'],['r','y','y','r','y']];
+  let id=1;
+  for(let row=0;row<5;row++){
+   const count=row+1; const y=348-row*NATIVE_RACK_PITCH*Math.cos(PI/6);
+   const x0=350-(count-1)*NATIVE_RACK_PITCH/2;
+   for(let j=0;j<count;j++){
+    const c=rows[row][j];
+    balls.push(ball(c==='b'?8:id===8?15:id,x0+j*NATIVE_RACK_PITCH,y,c==='r'?'red':c==='y'?'yellow':'black'));
+    id++;
+   }
+  }
+  // Ensure IDs are unique and all non-cue balls are present (8 remains black).
+  let next=1;for(const b of balls.slice(1))if(b.color!=='black'){while(next===8)next++;b.id=next++;}
+ }else{
+  // wh.s(): when t40.V is 0 or 1 (Pyramid), original creates balls
+  // with IDs 1..15 in mt.m0[1..15] order, unlike the coloured Pool rack.
+  const order=Array.from({length:15},(_,i)=>i+1);
+  let k=0;
+  for(let row=0;row<5;row++){
+   const count=row+1,y=348-row*NATIVE_RACK_PITCH*Math.cos(PI/6);
+   const x0=350-(count-1)*NATIVE_RACK_PITCH/2;
+   for(let j=0;j<count;j++){
+    const id=order[k++];balls.push(ball(id,x0+j*NATIVE_RACK_PITCH,y,id===8?'black':id<=7?'solids':'stripes'));
+   }
+  }
+ }
+ return balls;
+}
+function restart(showToast=false){
+ strikerGesture=null;closeStrikerChoice();
+ clearTimeout(cpuTimeout);clearTimeout(removalTimeout);
+ ballSet=$('ballSet').value;playerMode=$('players').value;
+ settings.friction=Number($('friction').value);
+ settings.pocketSize=Number($('pocketSize').value);
+ settings.difficulty=$('difficulty').value;
+ settings.aimingLines=$('aimingLines').checked?2:0;
+ settings.aimingWheel=$('aimingWheel').checked;
+ settings.tapToAim=$('tapToAim').checked;
+ settings.tapToShoot=$('tapToShoot').checked;
+ const balls=initialBalls(ballSet);
+ game={balls,mode:ballSet,playerMode,turn:0,groups:[null,null],shotNumber:0,
+    breakScattered:false,
+    firstBreak:true,winner:null,ballInHand:false,sound:settings.sound,friction:settings.friction,pocketSize:settings.pocketSize,
+    scores:[0,0],pyramidShots:[0,0],pyramidFouls:[0,0],
+    pyramidBalls:[0,0],pyramidStrikerPots:[0,0],
+    strikerId:0,selectingRemoval:false,removingBallId:null,removalPocketIndex:null,
+    finished:false,freeBall:false,played:0,
+    startedAt:Date.now(),soloScore:null,soloResult:null,soloDurationMs:0,soloFouls:0,
+    cpuVisits:1,cpuShots:0,cpuFouls:0,historyRecorded:false,
+    rules:{suitOnFirstStrike:$('suitOnFirstStrike').checked,
+           pyramidPenalty:Number($('pyramidPenalty').value),
+           resetBlackOnBreak:$('resetBlackOnBreak').checked,
+           loseIfScratchOnBlack:$('loseIfScratchOnBlack').checked}};
+ aim=-PI/2;power=0;cueRetraction=0;shot=null;strike=null;localShot=false;remoteSync=null;pocketFX=[];
+ aimTouchAngle=0;aimDeltaIndex=0;aimDeltas=[0,0,0];wheelDeltaIndex=0;wheelDeltas=[0,0,0];
+ $('frictionValue').textContent='Original setting '+settings.friction;
+ updateRuleHud();showMessage('Your turn!'); if(showToast)announce('New game');
+ if(role==='host')sendNetwork({kind:'state',game:exportState()});
+}
+function showMessage(message){$('turn').textContent=message;}
+function updateRuleHud(){
+ if(!game)return;
+ const el=$('pyramidScore');if(!el)return;
+ el.textContent=game.playerMode==='solo'?
+  ('Solo '+(game.mode==='blackball'?'Pool':game.mode==='free'?'Free Pyramid':'Combo Pyramid')+
+  ' • '+(game.soloResult==='win'?'Final score: '+game.soloScore:game.soloResult==='loss'?'Lost':
+  'Shots: '+game.played+' • Fouls: '+(game.soloFouls||0))):
+  game.mode==='blackball'?'Pool: red/yellow and black':
+  'Player 1: '+(game.scores?.[0]??0)+' · Player 2: '+(game.scores?.[1]??0)+
+  ' (first to 8)'+(game.mode==='free'?' · Striker: '+(game.strikerId??0):'')+
+  (game.selectingRemoval?' · Select ball to remove':'');
+}
+function announce(message,millis=1900){
+ const node=$('notice');node.hidden=false;node.textContent=message;
+ clearTimeout(noticeTimeout);noticeTimeout=setTimeout(()=>node.hidden=true,millis);
+}
+// wh.c.f(k7) / ha.f(k7): the native striker can change in Free Pyramid.
+const cueBall=()=>game.balls.find(b=>b.id===(game.strikerId??0))||game.balls[0];
+const moving=()=>game.balls.some(b=>b.active&&hypot(b.vx,b.vy)>NATIVE_STOP_SPEED);
+const ownTurn=()=>role==='local'||(role==='host'?game.turn===0:game.turn===1);
+const canAim=()=>!pendingStrikerChoice&&!game.finished&&!game.ballInHand&&!game.selectingRemoval&&!game.removingBallId&&!moving()&&ownTurn()&&!shot;
+function remaining(c){return game.balls.filter(b=>b.active&&b.color===c).length;}
+function groupOf(b){return b.color==='red'||b.color==='solids'?'a':b.color==='yellow'||b.color==='stripes'?'b':b.color;}
+function nativeLegalObjectIds(player=game.turn){
+ // Original ho.b() filters the current live ball list using ho.c() and
+ // ho.g(): open table -> colours only; selected suit -> own colours;
+ // all own colours pocketed -> black only. Then it excludes potted balls.
+ if(game.mode!=='blackball')return game.balls.filter(b=>b.active&&b.id!==game.strikerId).map(b=>b.id);
+ const selected=game.groups[player];
+ const own=selected==='a'?'red':selected==='b'?'yellow':null;
+ if(own&&remaining(own)===0)
+   return game.balls.filter(b=>b.active&&b.color==='black').map(b=>b.id);
+ return game.balls.filter(b=>b.active&&b.color!=='black'&&b.color!=='white'&&
+   (!selected||groupOf(b)===selected)).map(b=>b.id);
+}
+function findTarget(b){
+ return b.active&&b.id!==game.strikerId&&nativeLegalObjectIds().includes(b.id);
+}
+// ko.j in the vertical control: b=clamp(y-c,0,q); J=b/q.
+// tap-to-shoot sets c=j (control top); drag-to-shoot sets c=touch-down Y.
+function nativePowerRatio(y,downY,top,travel,tapToShoot){
+ return Math.min(1,Math.max(0,(y-(tapToShoot?top:downY))/travel));
+}
+// Original ko.N palette, in order from low to high strength.
+const POWER_COLORS=[[30,150,255],[45,200,254],[55,223,254],[45,246,239],
+ [34,243,197],[44,242,161],[45,237,59],[72,244,51],[99,232,58],
+ [129,243,35],[142,244,44],[188,243,32],[232,251,28],[247,197,51],[250,149,51],
+ [255,132,31],[255,114,20],[255,88,28],[255,30,30]];
+// ko constructor uses (1/3)-height gaps for the modern vertical control.
+function nativePowerSegments(travel,ratio){
+ const segment=travel/((POWER_COLORS.length-1)/3+POWER_COLORS.length);
+ const height=Math.round(segment),gap=Math.round(segment/3);
+ return {height,gap,count:Math.min(POWER_COLORS.length,Math.ceil(travel*ratio/(height+gap)))};
+}
+const POWER_CONTROL={top:845,travel:301};
+function choosePower(p){power=clamp(p,0,100);cueRetraction=power*.85;}
+function fire(a=aim,p=power,remote=false){
+ if(!canAim()&&!remote)return false;
+ if(game.finished||game.ballInHand||moving()||shot)return false;
+ if(!Number.isFinite(a)||!Number.isFinite(p)||p<=1.7)return false;
+ const c=cueBall();if(!c.active)return false;
+ aim=a;power=clamp(p,1.7,100);
+ // Decompiled ia.a() sets cue velocity from:
+ // pow(ko.J, 1.12) * ia.i * 400 * k7.W,
+ // with ia.i = pow(2, gameSpeed-1) from t40.v().  Earlier port used
+ // an arbitrary *linear* power curve; retain the actual nonlinear curve.
+ // Original ia.a(): do not impart the actual cue velocity immediately.
+ // Animate backward + forward in 20 ms ticks, then hold 40 ms before impact.
+ const nativePower=power/100;
+ const nativeSpeed=Math.pow(nativePower,1.12)*Math.pow(2,game.friction-1)*400*NATIVE_W;
+ const magnitude=nativeSpeed*NATIVE_SPEED_TO_PX_PER_SEC;
+ shot={first:null,potted:[],scratched:false,cushion:false,owner:game.turn,
+      black:false,strikerId:c.id,blackEarly:false,scratchAfterCleared:false,
+      ownBallsAtStart:game.mode==='blackball'&&game.groups[game.turn]?
+       remaining(game.groups[game.turn]==='a'?'red':'yellow'):null,
+      eventFoul:false,firstSuitPotted:null,colorPocketOrder:[]};
+ // wh.l() clears prior-hit references before the next strike.
+ game.balls.forEach(b=>b.nativeHitLinked=false);
+ localShot=!remote;game.shotNumber++;
+ if(localShot)sendNetwork({kind:'shot',a:aim,p:power});
+ const multiplier=NATIVE_W*Math.max(nativePower,.25);
+ strike={a:aim,magnitude,offset:18*multiplier,limit:50*multiplier,
+   pull:3*multiplier,push:9*multiplier,remaining:.02,phase:'pull'};
+ cueRetraction=strike.offset;power=0;
+ showMessage('Shooting…');return true;
+}
+// Read from ia.a(): pull back by y7.i (=3*scale) per 20 ms until reaching
+// y7.h (=50*scale), push forward by y7.j (=9*scale) until behind zero, then
+// pause 40 ms. This reproduces the original state sequence but uses the
+// browser frame clock rather than the native thread scheduling.
+function advanceStrike(dt){
+ if(!strike)return false;
+ let remaining=dt;
+ while(strike&&remaining>0){
+  if(remaining<strike.remaining){strike.remaining-=remaining;break;}
+  remaining-=strike.remaining;
+  if(strike.phase==='pull'){
+   if(strike.offset>=strike.limit)strike.phase='push';
+   strike.offset+=strike.phase==='push'?-strike.push:strike.pull;
+   strike.remaining=.02;
+  }else if(strike.phase==='push'){
+   strike.offset-=strike.push;
+   if(strike.offset<0){strike.offset=0;strike.phase='hold';strike.remaining=.04;}
+   else strike.remaining=.02;
+  }else{
+   const c=cueBall();c.vx=Math.cos(strike.a)*strike.magnitude;
+   c.vy=Math.sin(strike.a)*strike.magnitude;
+   strike=null;cueRetraction=0;
+   playSound('cue_strike',.84);showMessage('Balls in motion');
+   break;
+  }
+  if(strike)cueRetraction=Math.max(0,strike.offset);
+ }
+ return Boolean(strike);
+}
+// APK mt.i() and mt.q() / ei.<init>: the original chooses its capture
+// radii from the table size, mode, game speed and the pocket-size enum.
+// D = 65*scale (1.05 except at large-pocket setting), B=75*scale;
+// ei.f = D*.27*scaleFactor, ei.h = B*.233333*ei.k.
+// The original ball diameter is max(F/20,1.8*.2384615*D); for this
+// fixed-size HTML raster we calibrate 'scale' by the second native term.
+// That calibration is a remaining screen-mapping approximation.
+function nativeTableScale(){return DIAM/(65*1.8*.23846153846153847);}
+function nativePocketTableFactor(size=game.pocketSize,mode=game.mode,highPrecision=false){
+ // Exact branches of mt.i(), with t40.i as highPrecision. Original UI's
+ // current SDK pocket enum consists of 10, 20 and 30 (GameActivity).
+ const blackball=mode==='blackball';
+ if(size===10)return blackball?.9:.8;
+ if(size===20)return blackball?1.16:1;
+ if(size===30)return blackball?1.5:1.3;
+ if(size===-18)return blackball?(highPrecision?.9:.85):(highPrecision?.85:.75);
+ return 1;
+}
+function nativeEiCaptureRadius(pk,size=game.pocketSize,speed=game.friction){
+ // ei.f/h and ei.k from mt.q, expressed in the fixed sprite units.
+ const scale=nativeTableScale(),B=75*scale,D=65*scale*(size===30?1:1.05);
+ const speedFactor=speed<3||size===30?1:1.9;
+ if(size===-18){
+  // ei.i and ei.l are adaptive difficulty-dependent in the original;
+  // this legacy mode is not offered in modern-device HTML settings.
+  const modifier=settings.difficulty==='easy'?1.13:settings.difficulty==='normal'?1.07:1;
+  return pk.type==='middle'?D*.27*modifier:B*.23333333333333334*speedFactor/1.5;
+ }
+ return pk.type==='middle'?D*.27*speedFactor:B*.23333333333333334*speedFactor;
+}
+function nativePocketCaptureRadius(pk,size=game.pocketSize,speed=game.friction){
+ // mt.i() scales the original table bitmaps and pocket locations, not just
+ // the ei threshold. The HTML fixes the artwork geometry, so apply the
+ // original relative table scale to the source ei threshold. This ratio
+ // is the necessary viewport conversion, not byte-identical Android code.
+ const relativeTable=nativePocketTableFactor(size,game.mode)/nativePocketTableFactor(20,game.mode);
+ return nativeEiCaptureRadius(pk,size,speed)*relativeTable;
+}
+function isPocket(x,y){
+ for(const pk of POCKETS){
+  if(hypot(x-pk.x,y-pk.y)<=nativePocketCaptureRadius(pk))return pk;
+ }
+ return null;
+}
+// Direct implementation of k7.q() pocketed-ball animation steps.
+// k7.q(): move in (int)(15/max(smoothedFrameMs,1) * speedDependentSteps)
+// and hold the end point (int)(15/max(smoothedFrameMs,1) * 20) draws.
+function nativePocketAnimationFrames(nativeSpeed,frameMs=15,speedSetting=2){
+ const playback=15/Math.max(1,frameMs);
+ const motion=nativeSpeed>5?
+   Math.max(Math.min(Math.trunc(35/nativeSpeed*20),20),10):20;
+ const travel=Math.max(0,Math.trunc(playback*motion));
+ const hold=Math.max(0,Math.trunc(playback*20));
+ return {travelFrames:travel+2,holdFrames:hold,
+   totalFrames:travel+2+hold,fadeFrames:speedSetting<=2?5:0};
+}
+function nativePocketDestination(b,pk){
+ const dy=pk.type==='middle'?((pk.x<W/2)?-.1*BALL_R:.1*BALL_R):0;
+ return {x:pk.x,y:pk.y+dy};
+}
+function pocket(b,pk){
+ if(!b.active)return;
+ const speed=hypot(b.vx,b.vy)/NATIVE_SPEED_TO_PX_PER_SEC;
+ const timing=nativePocketAnimationFrames(speed,smoothedDrawMs,game.friction);
+ pocketFX.push({x:b.x,y:b.y,color:b.color,id:b.id,t:performance.now(),
+   to:nativePocketDestination(b,pk),timing,drawMs:smoothedDrawMs,mode:game.mode});
+ // k7.q() processes pots in chronological order, not only at shot end.
+ // ho.c()/ho.g() select the suit on the FIRST eligible colour pot; each
+ // subsequent enemy-colour pot invokes wh.m(false), recording one foul.
+ if(shot&&game.mode==='blackball'){
+   const player=shot.owner,other=1-player;
+   const assigned=game.groups[player];
+   const own=assigned==='a'?'red':assigned==='b'?'yellow':null;
+   if(b.color==='red'||b.color==='yellow'){
+     if(!Array.isArray(shot.colorPocketOrder))shot.colorPocketOrder=[];
+     shot.colorPocketOrder.push(b.id);
+     const pottedGroup=groupOf(b);
+     const assignNow=!assigned&&(!game.firstBreak||game.rules?.suitOnFirstStrike);
+     if(assignNow){
+       game.groups[player]=pottedGroup;
+       game.groups[other]=pottedGroup==='a'?'b':'a';
+       shot.firstSuitPotted=b.id;
+     }else if(assigned&&pottedGroup!==assigned){
+       shot.eventFoul=true; // wh.m(false): foul flagged immediately.
+     }
+   }else if(b.id===8){
+     shot.blackEarly=!own||game.balls.some(other=>other.active&&other.color===own);
+   }else if(b.id===shot.strikerId){
+     shot.scratchAfterCleared=Boolean(own&&!game.balls.some(other=>other.active&&other.color===own));
+     shot.eventFoul=true; // wh.m(true) after cue-ball scratch.
+   }
+ }
+ b.active=false;b.vx=0;b.vy=0;
+ if(shot){shot.potted.push(b.id);if(b.id===shot.strikerId)shot.scratched=true;if(game.mode==='blackball'&&b.id===8)shot.black=true;}
+ playSound('ball_in_pocket',.84);
+}
+/* Source-mapped continuous collision event handling for the browser port.
+   s8.c: quadratic contact, k7.b: ball contact, ex.b: cushion segment,
+   ea.b: jaw point, k7.r: normal exchange and 0.99 damping.
+   Unlike the original l30.m, this processes shared relative motion globally.
+   It therefore improves collision fidelity but is NOT a literal 1:1 port. */
+// x00.d/e/f and k7.a(): original authored break-rack impulse redistribution.
+// These numbers are read from the supplied APK's obfuscated engine rather than
+// tuned to make a generic browser pool break look convincing.
+const BREAK_PATTERN=[0,1,11,15,13,12,14,2,3,4,6,7,10,8,9,5];
+const BREAK_SPEED=[1.78,1.2,1.57,1.57,1.42,.12,1.42,1.31,.25,.25,1.31,5.6,2.56,2.63,2.56,5.6];
+const BREAK_PORTRAIT_ANGLE=[90,90,130.1,49.9,133.8,90,46.2,172.1,-108.2,-71.8,7.9,-120,-91.8,-90,-88.2,-60];
+const BREAK_RIGHT_GROUP=[2,4,7,8,11,12];
+const BREAK_LEFT_GROUP=[3,6,9,10,14,15];
+function distributeNativeBreak(preImpactSpeedSq, cueBall){
+  // Special path in k7.a() is enabled once per rack by x00.c. The original
+  // applies it only if the contact object is the precise apex mt.m0[1].
+  const apex=game.balls[1];
+  const relativeDegrees=Math.atan2(apex.y-cueBall.y,apex.x-cueBall.x)*180/PI+90;
+  const leftWeight=2/(Math.abs(Math.pow((-30+relativeDegrees)/12,3))*.06+1);
+  const rightWeight=2/(Math.abs(Math.pow((relativeDegrees+30)/12,3))*.06+1);
+  const initialSpeed=Math.sqrt(preImpactSpeedSq);
+  for(let i=2;i<Math.min(16,game.balls.length);i++){
+    const ball=game.balls[i],pattern=BREAK_PATTERN[i];
+    const modifier=BREAK_RIGHT_GROUP.includes(pattern)?rightWeight:
+      BREAK_LEFT_GROUP.includes(pattern)?leftWeight:1;
+    const speed=modifier*BREAK_SPEED[pattern]*initialSpeed*.1;
+    const angle=BREAK_PORTRAIT_ANGLE[pattern]*PI/180;
+    ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
+  }
+  // Normalize the non-cue balls' kinetic energy to the transferred kinetic
+  // energy exactly as the normalization branch in k7.a() does.
+  const transferred=Math.max(0,preImpactSpeedSq-(cueBall.vx**2+cueBall.vy**2));
+  let total=0;
+  for(const b of game.balls)if(b!==cueBall&&b.active)total+=b.vx*b.vx+b.vy*b.vy;
+  if(total>1e-12&&transferred>0){
+    const scale=Math.sqrt(transferred/total);
+    for(const b of game.balls)if(b!==cueBall&&b.active){b.vx*=scale;b.vy*=scale;}
+  }
+}
+// Decompiled mt.o(): low game-speed settings bounce at .90; higher settings
+// use .99. ex.a() and ea.a() both multiply by y7.a at collision time.
+function nativeCushionRestitution(speedSetting){return speedSetting<=2?.90:.99;}
+const NATIVE_RAIL_RESTITUTION=.90; // retained for legacy diagnostic solver
+const NATIVE_EVENT_EPS=1e-8;
+const CUSHION_SEGMENTS=[
+  [[135,FIELD.top],[565,FIELD.top]],
+  [[135,FIELD.bottom],[565,FIELD.bottom]],
+  [[FIELD.left,189],[FIELD.left,634]],
+  [[FIELD.left,766],[FIELD.left,1212]],
+  [[FIELD.right,189],[FIELD.right,634]],
+  [[FIELD.right,766],[FIELD.right,1212]]
+];
+// mt.o() creates 6 further ex(true) segments around two middle pockets;
+// mouth offset is scaled to the existing browser field geometry.  The six
+// long rails above are retained; these extra blockers approximate the native
+// outer side-pocket liners, which v8 omitted entirely.
+const SIDE_MOUTH_DEPTH=36;
+const NATIVE_SIDE_MOUTH_SEGMENTS=[
+ [[FIELD.left,634],[FIELD.left-SIDE_MOUTH_DEPTH,634]],
+ [[FIELD.left,766],[FIELD.left-SIDE_MOUTH_DEPTH,766]],
+ [[FIELD.left-SIDE_MOUTH_DEPTH,634],[FIELD.left-SIDE_MOUTH_DEPTH,766]],
+ [[FIELD.right,634],[FIELD.right+SIDE_MOUTH_DEPTH,634]],
+ [[FIELD.right,766],[FIELD.right+SIDE_MOUTH_DEPTH,766]],
+ [[FIELD.right+SIDE_MOUTH_DEPTH,634],[FIELD.right+SIDE_MOUTH_DEPTH,766]]
+];
+// mt.b() contributes 12 short diagonal segments: three around each of the
+// four corner pockets.  The segment TOPOLOGY is sourced from mt.b(); their
+// pixel offsets are browser-calibrated to the original fitted table art.
+const CORNER_LIP_DEPTH=35;
+const NATIVE_CORNER_LIP_SEGMENTS=[];
+function appendNativeCornerLips(a,b,offsetX,offsetY){
+ const aa=[a[0]+offsetX,a[1]+offsetY],bb=[b[0]+offsetX,b[1]+offsetY];
+ NATIVE_CORNER_LIP_SEGMENTS.push([a,aa],[b,bb],[aa,bb]);
+}
+appendNativeCornerLips([FIELD.left,189],[135,FIELD.top],-CORNER_LIP_DEPTH,-CORNER_LIP_DEPTH);
+appendNativeCornerLips([FIELD.right,189],[565,FIELD.top],CORNER_LIP_DEPTH,-CORNER_LIP_DEPTH);
+appendNativeCornerLips([565,FIELD.bottom],[FIELD.right,1212],CORNER_LIP_DEPTH,CORNER_LIP_DEPTH);
+appendNativeCornerLips([135,FIELD.bottom],[FIELD.left,1212],-CORNER_LIP_DEPTH,CORNER_LIP_DEPTH);
+const NATIVE_COLLISION_SEGMENTS=[...CUSHION_SEGMENTS,...NATIVE_SIDE_MOUTH_SEGMENTS,...NATIVE_CORNER_LIP_SEGMENTS];
+// mt.o() registers four mouth lips and eight cushion/jaw end-points as ea
+// objects.  Their browser positions are source-derived but not yet pixel
+// calibrated against the native layout.
+const JAW_POINTS = CUSHION_SEGMENTS.flatMap(segment=>segment);
+function rootForContact(px,py,vx,vy,radius,maximum) {
+  const a=vx*vx+vy*vy;
+  if(a<1e-12)return Infinity;
+  const b=2*(px*vx+py*vy),c=px*px+py*py-radius*radius;
+  // Native s8.c condition: never select a stationary / receding pair.
+  if(b>=0)return Infinity;
+  const discriminant=b*b-4*a*c;
+  if(discriminant<0)return Infinity;
+  const t=(-b-Math.sqrt(discriminant))/(2*a);
+  if(t<-NATIVE_EVENT_EPS||t>maximum)return Infinity;
+  return Math.max(0,t);
+}
+function selectCollisionEvent(balls,maximum) {
+  let first=null,time=maximum+NATIVE_EVENT_EPS;
+  const take=(t,candidate)=>{
+    if(Number.isFinite(t)&&t<time&&t<=maximum+NATIVE_EVENT_EPS) {
+      time=Math.max(0,t);first=candidate;
+    }
+  };
+  // Moving-body contact times: analogous to k7.b(), extended to relative
+  // velocity (the original updates balls sequentially instead).
+  for(let i=0;i<balls.length;i++){
+    const a=balls[i];if(!a.active)continue;
+    for(let j=i+1;j<balls.length;j++){
+      const b=balls[j];if(!b.active)continue;
+      const dx=b.x-a.x,dy=b.y-a.y,dvx=b.vx-a.vx,dvy=b.vy-a.vy;
+      const timeHit=rootForContact(dx,dy,dvx,dvy,DIAM,maximum);
+      if(timeHit!==Infinity)take(timeHit,{kind:'ball',a,b});
+    }
+  }
+  for(const b of balls){
+    if(!b.active||hypot(b.vx,b.vy)<1e-4)continue;
+    // Original ei pockets use circle thresholds. For edge-crossing shots,
+    // compute the time to enter each pocket rather than sampling positions.
+    for(const p of POCKETS){
+      const r=nativePocketCaptureRadius(p);
+      const t=rootForContact(b.x-p.x,b.y-p.y,b.vx,b.vy,r,maximum);
+      if(t!==Infinity)take(t,{kind:'pocket',ball:b,pocket:p});
+    }
+    // Cushion inner face is a finite line segment: ex.b() computes the two
+    // offset intersections; choose the one approached from inside the table.
+    for(const segment of NATIVE_COLLISION_SEGMENTS){
+      const [[ax,ay],[bx,by]]=segment;
+      const sx=bx-ax,sy=by-ay,length=hypot(sx,sy),tx=sx/length,ty=sy/length;
+      const nx=-ty,ny=tx;
+      const dist=(b.x-ax)*nx+(b.y-ay)*ny;
+      const vn=b.vx*nx+b.vy*ny;
+      if(Math.abs(vn)<1e-10)continue;
+      for(const desired of [-BALL_R,BALL_R]){
+        const t=(desired-dist)/vn;
+        if(t<-NATIVE_EVENT_EPS||t>maximum)continue;
+        // Approach means closing the distance towards the cushion face.
+        if(desired*vn>=0)continue;
+        const bxAt=b.x+b.vx*t,byAt=b.y+b.vy*t;
+        const projection=(bxAt-ax)*tx+(byAt-ay)*ty;
+        if(projection<=0.0001||projection>=length-.0001)continue;
+        take(Math.max(0,t),{kind:'rail',ball:b,nx:nx*Math.sign(desired),ny:ny*Math.sign(desired)});
+      }
+    }
+    // Point ends are spherical contacts: corresponds to ea.b()/ea.a().
+    for(const [px,py] of JAW_POINTS){
+      const t=rootForContact(b.x-px,b.y-py,b.vx,b.vy,BALL_R,maximum);
+      if(t!==Infinity)take(t,{kind:'jaw',ball:b,x:px,y:py});
+    }
+  }
+  return first?{t:time,...first}:null;
+}
+function moveActiveBalls(balls,dt){
+  for(const b of balls){if(b.active){b.x+=b.vx*dt;b.y+=b.vy*dt;}}
+}
+function resolveEvent(event){
+  if(event.kind==='pocket'){
+    pocket(event.ball,event.pocket);return;
+  }
+  if(event.kind==='ball'){
+    const a=event.a,b=event.b;
+    if(!a.active||!b.active)return;
+    let dx=b.x-a.x,dy=b.y-a.y;
+    let length=hypot(dx,dy);
+    if(length<1e-9){dx=DIAM;dy=0;length=DIAM;}
+    const nx=dx/length,ny=dy/length;
+    const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+    if(relative>=0)return;
+    const currentStriker=shot?.strikerId??game.strikerId;
+    const firstCueImpact=Boolean(shot&&shot.first===null&&(a.id===currentStriker||b.id===currentStriker));
+    const movingCue=a.id===currentStriker?a:b.id===currentStriker?b:null;
+    const targetBall=movingCue===a?b:a;
+    const preCueSpeedSq=movingCue?movingCue.vx**2+movingCue.vy**2:0;
+    if(firstCueImpact)shot.first=targetBall.id;
+    // k7.e() records a collision-linked ball. wh.i() considers a potted
+    // ball with a live collision reference when deciding Pyramid exhaustion.
+    a.nativeHitLinked=true;b.nativeHitLinked=true;
+    // Same equal-mass normal transfer as the ordinary branch in k7.r().
+    const va=relative;
+    const avx=a.vx+va*nx,avy=a.vy+va*ny;
+    const bvx=b.vx-va*nx,bvy=b.vy-va*ny;
+    a.vx=avx*.99;a.vy=avy*.99;
+    b.vx=bvx*.99;b.vy=bvy*.99;
+    if(firstCueImpact && game.firstBreak && !game.breakScattered){
+      game.breakScattered=true;
+      if(targetBall===game.balls[1])distributeNativeBreak(preCueSpeedSq,movingCue);
+    }
+    // Small separation prevents repeated event at t=0 on floating-point noise.
+    const separation=Math.max(0,(DIAM-length)/2)+.00005;
+    a.x-=nx*separation;a.y-=ny*separation;
+    b.x+=nx*separation;b.y+=ny*separation;
+    playSound('balls_collide',clamp(-relative/1400,.12,.85));
+    return;
+  }
+  const b=event.ball;
+  if(!b.active)return;
+  let nx=event.nx,ny=event.ny;
+  if(event.kind==='jaw'){
+    nx=b.x-event.x;ny=b.y-event.y;
+    const length=hypot(nx,ny)||1;nx/=length;ny/=length;
+  }
+  const normalVelocity=b.vx*nx+b.vy*ny;
+  if(normalVelocity>=0)return;
+  // Exact ex.a()/ea.a() 2x normal reflection, scaled by y7.a
+  const bounce=nativeCushionRestitution(game.friction);
+  b.vx=(b.vx-2*normalVelocity*nx)*bounce;
+  b.vy=(b.vy-2*normalVelocity*ny)*bounce;
+  b.x+=nx*.001;b.y+=ny*.001;
+  if(shot)shot.cushion=true;
+  playSound('balls_collide',.12);
+}
+// ------------------------------------------------------------------------
+// Phase 9: closer translation of m7.c() -> k7.k() -> l30.m() from the
+// recovered APK.  This works one moving ball at a time against the current
+// positions of the other balls, just as k7.k() does.  It is intentionally
+// separate from the v8 simultaneous, relative-velocity event solver above,
+// retained as simulateLegacy() for regression comparisons.
+//
+// Exact reconstruction limits: the Android engine uses k7.J based on its
+// native draw-thread cadence and mt.j() repairs invalid jaw interactions;
+// the browser is scaled in pixel/s and doesn't execute those Dalvik threads.
+// ------------------------------------------------------------------------
+function nativeCollisionRoot(px,py,vx,vy,radius,maximum){
+ const a=vx*vx+vy*vy,b=2*(px*vx+py*vy),c=px*px+py*py-radius*radius;
+ // s8.c(): roots are not admitted for an already overlapping object or for
+ // an object whose relative displacement is increasing.
+ if(a<=1e-14||b>=0||c<=0)return Infinity;
+ const disc=b*b-4*a*c;if(disc<0)return Infinity;
+ const result=(-b-Math.sqrt(disc))/(2*a);
+ return result>=0&&result<=maximum?result:Infinity;
+}
+function nativeLineContact(ball,segment,maximum){
+ // ex.b()/ex.e(): two offset lines for each finite ex segment; strict
+ // interior projection excludes endpoints (ea handles the endpoints).
+ const [[x0,y0],[x1,y1]]=segment;
+ const sx=x1-x0,sy=y1-y0,length=Math.hypot(sx,sy);
+ if(length<1e-12)return null;
+ const tx=sx/length,ty=sy/length,nx=-ty,ny=tx;
+ const dist=(ball.x-x0)*nx+(ball.y-y0)*ny;
+ const vn=ball.vx*nx+ball.vy*ny;
+ if(Math.abs(vn)<1e-12)return null;
+ let closest=null;
+ for(const side of [-1,1]){
+  // Move towards the offset line, not away from it.
+  if(side*vn>=0)continue;
+  const at=(side*BALL_R-dist)/vn;
+  if(at<0||at>maximum)continue;
+  const px=ball.x+ball.vx*at,py=ball.y+ball.vy*at;
+  const along=(px-x0)*tx+(py-y0)*ty;
+  if(along<=1e-8||along>=length-1e-8)continue;
+  if(!closest||at<closest.t)closest={t:at,kind:'rail',ball,nx:side*nx,ny:side*ny};
+ }
+ return closest;
+}
+
+// Source mt.j(x,y) checks the entire ball remains inside the rectangular
+// collision boundaries. Coordinates in k7 are TOP-LEFT; HTML ball.x/y are
+// CENTERS. Pocket-mouth corridors are the exceptions in the source's
+// obfuscated l30.m() repair logic, where non-rectangular jaw polygons apply.
+function nativeInsideRect(cx,cy){
+ return cx>=FIELD.left+BALL_R&&cx<=FIELD.right-BALL_R&&
+        cy>=FIELD.top+BALL_R&&cy<=FIELD.bottom-BALL_R;
+}
+// Corner and middle mouth coordinates are reconstructed from mt.q():
+//   d0..k0: four diagonally paired corner jaw endpoints, d14=A-C;
+//   W/X/Z/a0: two middle-pocket jaws per side, spaced by mt.c0;
+//   V/Y: side-pocket exterior points, moved by z*.4222222.
+// The exact native screen size is unavailable in a static HTML canvas, so
+// lengths use mt's native ratios calibrated to the browser ball sprite.
+const NATIVE_MOUTH_DELTA=(30-8)*nativeTableScale();
+const NATIVE_MIDDLE_HALF=65*1.05*.23846153846153847*nativeTableScale();
+const NATIVE_MIDDLE_DEPTH=45*.4222222222222222*nativeTableScale();
+function nativeJawClearance(x,y,p0,p1){
+ // Exact boolean body of si.i(x,y,x0,y0,x1,y1), where k7.N=K².
+ const a=(x-p0[0])**2+(y-p0[1])**2;
+ const b=(x-p1[0])**2+(y-p1[1])**2;
+ return a>=BALL_R*BALL_R&&b>=BALL_R*BALL_R;
+}
+function nativeInsidePocketMouth(cx,cy){
+ const P=FIELD.left,Q=FIELD.right,R=FIELD.top,S=FIELD.bottom;
+ const half=NATIVE_MIDDLE_HALF,delta=NATIVE_MOUTH_DELTA;
+ for(const [xx,yy,sx,sy] of [[P,R,1,1],[Q,R,-1,1],[P,S,1,-1],[Q,S,-1,-1]]){
+  const x=sx*(cx-xx),y=sy*(cy-yy);
+  if(x<-BALL_R||y<-BALL_R||x>delta+BALL_R||y>delta+BALL_R)continue;
+  if(x+y>delta+BALL_R)continue;
+  if(nativeJawClearance(cx,cy,[xx,yy+sy*delta],[xx+sx*delta,yy]))return true;
+ }
+ const middle=(R+S)/2;
+ for(const [edge,sx] of [[P,1],[Q,-1]]){
+  const inward=sx*(cx-edge);
+  if(inward < -NATIVE_MIDDLE_DEPTH-BALL_R*.25||inward>BALL_R)continue;
+  if(Math.abs(cy-middle)>half+BALL_R)continue;
+  if(nativeJawClearance(cx,cy,[edge,middle-half],[edge,middle+half]))return true;
+ }
+ return false;
+}
+// l30.m(): when its chosen event predicts an invalid location, the native
+// engine retries with t *= 0.99, at most ten times. The exact polygon test
+// uses si.i and Android-scaled mt.d0..a0: the browser applies the recovered
+// rectangle plus explicit pocket-mouth exceptions instead of guessing those
+// original screen-specific polygons.
+function nativeRepairEventTime(b,event){
+ if(!event||event.t<=0)return event;
+ let t=event.t,attempts=0;
+ while(attempts<10){
+  const x=b.x+b.vx*t,y=b.y+b.vy*t;
+  if(nativeInsideRect(x,y)||nativeInsidePocketMouth(x,y))break;
+  t*=.99;attempts++;
+ }
+ return {...event,t,repairAttempts:attempts};
+}
+
+function nativeFirstCollision(ball,balls,maximum){
+ // l30.m() first valid earliest candidate wins; direct zero-time event
+ // returns immediately.  For positive times it uses t*0.9999 so bodies are
+ // separated just before impact.  This is the executable portion verified
+ // in l30.m, before the obfuscated mt.j() 10-try boundary adjustment.
+ let selected=null,best=maximum+1e-8;
+ const offer=(time,obj)=>{
+  if(!Number.isFinite(time)||time<0||time>maximum)return false;
+  const adjusted=time<1e-10?0:time*.9999;
+  if(adjusted===0){selected={...obj,t:0};best=0;return true;}
+  if(adjusted<best){selected={...obj,t:adjusted};best=adjusted;}
+  return false;
+ };
+ // mt.j: ex cushion segments followed by ea jaw point objects.
+ for(const segment of NATIVE_COLLISION_SEGMENTS){
+  const found=nativeLineContact(ball,segment,maximum);
+  if(found&&offer(found.t,found))return selected;
+ }
+ for(const [x,y] of JAW_POINTS){
+  const t=nativeCollisionRoot(ball.x-x,ball.y-y,ball.vx,ball.vy,BALL_R,maximum);
+  if(offer(t,{kind:'jaw',ball,x,y}))return selected;
+ }
+ // k7.b uses the other body's CURRENT position (not its future position),
+ // whereas v8 had used the relative velocity of BOTH balls.
+ for(const other of balls){
+  if(other===ball||!other.active)continue;
+  const t=nativeCollisionRoot(ball.x-other.x,ball.y-other.y,ball.vx,ball.vy,DIAM,maximum);
+  if(offer(t,{kind:'ball',a:ball,b:other}))return selected;
+ }
+ return nativeRepairEventTime(ball,selected);
+}
+function nativeAdvanceBall(ball,all,dt,damping){
+ if(!ball.active)return;
+ if(Math.hypot(ball.vx,ball.vy)<NATIVE_STOP_SPEED){ball.vx=ball.vy=0;return;}
+ const event=nativeFirstCollision(ball,all,dt);
+ const travel=event?event.t:dt;
+ ball.x+=ball.vx*travel;
+ ball.y+=ball.vy*travel;
+ if(event){
+  // Collision must be dispatched BEFORE pocket detection and drag, per k7.k.
+  resolveEvent(event);
+ }
+ if(!ball.active)return;
+ // k7.k() tests ei pockets after its one selected event; retain the
+ // browser-scaled pocket radii from previous translation.
+ const p=isPocket(ball.x,ball.y);
+ if(p){pocket(ball,p);return;}
+ ball.vx*=damping;ball.vy*=damping;
+ if(Math.hypot(ball.vx,ball.vy)<NATIVE_STOP_SPEED)ball.vx=ball.vy=0;
+}
+function simulate(dt){
+ if(!shot||dt<=0)return;
+ if(strike){advanceStrike(dt);return;}
+ const all=game.balls;
+ const coeff=Math.pow(.995-.001*game.friction,1.75);
+ const damping=Math.pow(coeff,dt*60);
+ // m7.c: all balls are advanced IN THEIR EXISTING list order.  A collision
+ // may modify a not-yet-updated ball's velocity before its k7.k() turn.
+ for(const ball of all)nativeAdvanceBall(ball,all,dt,damping);
+ if(all.every(b=>!b.active||Math.hypot(b.vx,b.vy)<NATIVE_STOP_SPEED)){
+  for(const b of all){b.vx=b.vy=0;}
+  finishShot();
+ }
+}
+function simulateLegacy(dt){
+  if(!shot||dt<=0)return;
+  if(strike){advanceStrike(dt);return;}
+  const active=game.balls.filter(b=>b.active);
+  const coeff=Math.pow(.995-.001*game.friction,1.75);
+  let left=dt,events=0;
+  while(left>1e-7&&shot){
+    // Soft upper cap guards pathological repeated cushion and jaw contacts.
+    if(events++>120){moveActiveBalls(active,left);break;}
+    for(const b of active){
+      if(b.active&&hypot(b.vx,b.vy)<NATIVE_STOP_SPEED){b.vx=b.vy=0;}
+    }
+    const event=selectCollisionEvent(active,left);
+    if(!event){moveActiveBalls(active,left);left=0;break;}
+    if(event.t>0){moveActiveBalls(active,event.t);left-=event.t;}
+    resolveEvent(event);
+    if(event.t<1e-7){
+      // Original l30.m uses a 0.9999 contact-time adjustment.
+      // Consume a tiny portion of the frame to guarantee progress.
+      const slice=Math.min(left,1e-5);moveActiveBalls(active,slice);left-=slice;
+    }
+  }
+  // Native t40.v sets T=(0.995-0.001*speed)^1.75 per frame.
+  const damping=Math.pow(coeff,dt*60);
+  for(const b of active){
+    if(!b.active)continue;
+    b.vx*=damping;b.vy*=damping;
+    if(hypot(b.vx,b.vy)<NATIVE_STOP_SPEED){b.vx=b.vy=0;}
+    // Fall-through check also covers balls already inside the pocket circle.
+    const p=isPocket(b.x,b.y);
+    if(p)pocket(b,p);
+  }
+  if(game.balls.every(b=>!b.active||hypot(b.vx,b.vy)<NATIVE_STOP_SPEED)){
+    for(const b of game.balls){b.vx=b.vy=0;}
+    finishShot();
+  }
+}
+
+// wh.l(): re-place the white using the original deterministic grid search,
+// starting from mt.m0[0], moving toward the left and then the upper cushion,
+// pitch k7.P (=1.2 * radius). mt.k's shape check is mapped into the
+// equivalent browser centre coordinates; Android uses top-left coordinates.
+function freeBallLocation(x,y,exclude){
+ return x>=FIELD.left+BALL_R&&x<=FIELD.right-BALL_R&&
+   y>=FIELD.top+BALL_R&&y<=FIELD.bottom-BALL_R&&
+   game.balls.every(b=>b===exclude||!b.active||hypot(b.x-x,b.y-y)>=DIAM+1);
+}
+function safeCueLocation(x=350,y=1040){
+ const c=cueBall();c.active=true;c.vx=c.vy=0;
+ const step=BALL_R*1.2;
+ for(let cx=x;cx>FIELD.left+BALL_R;cx-=step){
+  for(let cy=y;cy>FIELD.top+BALL_R;cy-=step){
+   if(freeBallLocation(cx,cy,c)){
+    c.x=cx;c.y=cy;return true;
+   }
+  }
+ }
+ // Preserve the last valid position if the start-point grid is completely
+ // blocked, instead of silently teleporting onto another object ball.
+ return false;
+}
+// Native numbered-ball rules from k7.q() / wh.l(): respot the black ball
+// if the break rule is enabled. The Android engine searches valid positions
+// around mt.m0[5]; the equivalent browser search preserves ball clearance.
+// wh.l(): black reset is an ordered Chebyshev square-ring search around
+// mt.m0[5] with per-axis random jitter ±0.05*K and a pitch of k7.P.
+// This differs from the radial search used in the older browser version.
+function respotBlackBall(random=Math.random){
+ const black=game.balls.find(b=>b.id===8);
+ if(!black)return false;
+ const home=initialBalls(game.mode).find(b=>b.id===8);
+ if(!home)return false;
+ const x0=home.x+(random()-.5)*.1*BALL_R;
+ const y0=home.y+(random()-.5)*.1*BALL_R;
+ const pitch=BALL_R*1.2;
+ for(let ring=0;ring<10;ring++){
+  for(let dx=-ring;dx<=ring;dx++){
+   for(let dy=-ring;dy<=ring;dy++){
+    if(Math.max(Math.abs(dx),Math.abs(dy))<ring)continue;
+    const x=x0+pitch*dx,y=y0+pitch*dy;
+    if(!freeBallLocation(x,y,black))continue;
+    black.x=x;black.y=y;black.vx=black.vy=0;black.active=true;
+    return true;
+   }
+  }
+ }
+ return false;
+}
+function recalculatePyramidScores(){
+ // ho.h(): t40.W is "penalty_on_foul_ru" in BOTH Pyramid rule sets.
+ // W=0 gives own objects+striker shots−own fouls; W=1 awards opponent's fouls.
+ for(let i=0;i<2;i++)game.scores[i]=(game.pyramidBalls?.[i]||0)+
+   (game.pyramidStrikerPots?.[i]||0)+
+   (game.rules.pyramidPenalty===0?-(game.pyramidFouls?.[i]||0):
+      (game.pyramidFouls?.[1-i]||0));
+ updateRuleHud();
+}
+function setNativeStriker(id){
+ const b=game.balls.find(ball=>ball.id===id&&ball.active);
+ if(!b)return false;
+ game.strikerId=id;
+ game.ballInHand=false;
+ updateRuleHud();
+ return true;
+}
+function pickAvailableStriker(excluded){
+ // wh.l(): when the selected ball is pocketed in Free Pyramid after impact,
+ // ha.f() binds the first eligible active replacement in native list order.
+ const next=game.balls.find(b=>b.active&&b.id!==excluded);
+ return next?setNativeStriker(next.id):false;
+}
+// wh.e(FFDZ): !n maps to active; m maps to id === strikerId.
+// Strict comparisons preserve list order for equal-distance candidates.
+function nearestEligibleBall(balls, x, y, radius, strikerId, includeStriker = false) {
+ let nearest = null, bestDistance = Infinity;
+ const limit = radius * radius;
+ for (const ball of balls) {
+  if (!ball.active || (!includeStriker && ball.id === strikerId)) continue;
+  const distance = (ball.x - x) ** 2 + (ball.y - y) ** 2;
+  if (distance < bestDistance && distance < limit) {
+   nearest = ball;
+   bestDistance = distance;
+  }
+ }
+ return nearest;
+}
+
+// wh.n ACTION_UP, after a down candidate has been captured.
+// x00.w maps to CSS-pixel units in the browser adapter.
+function strikerTapResult({elapsedMs,dx,dy,unit,candidateId,releaseId,tapToAim}) {
+ if(candidateId===null||candidateId===undefined||candidateId!==releaseId||
+    elapsedMs<0||elapsedMs>=1000||dx*dx+dy*dy>=(7*unit)**2)return 'none';
+ return tapToAim&&elapsedMs<200?'choose-or-aim':'choose';
+}
+function nativeTouchUnit(){
+ // Android x00.w is px/dp; use one CSS pixel, converted to table units.
+ const rect=canvas.getBoundingClientRect();
+ return W/Math.max(1,rect.width);
+}
+let strikerGesture=null,pendingStrikerChoice=null;
+function chooseFreeStriker(id,remote=false){
+ if(game.mode!=='free'||!game.freeBall||game.finished||shot||moving()||
+    game.ballInHand||game.selectingRemoval||game.removingBallId!==null||
+    (!remote&&!ownTurn()))return false;
+ const selected=game.balls.find(b=>b.id===id&&b.active&&b.id!==game.strikerId);
+ if(!selected)return false;
+ setNativeStriker(id);
+ if(!remote)sendNetwork({kind:'striker',id});
+ showMessage('Ball '+id+' selected as striker');
+ return true;
+}
+function closeStrikerChoice(){
+ pendingStrikerChoice=null;$('strikerChoice').hidden=true;
+}
+function showStrikerChoice(id,p){
+ pendingStrikerChoice={id,x:p.x,y:p.y};$('strikerChoice').hidden=false;
+ $('chooseStriker').focus();
+}
+$('chooseStriker').onclick=()=>{
+ const choice=pendingStrikerChoice;closeStrikerChoice();
+ if(choice)chooseFreeStriker(choice.id);
+};
+$('aimAtStriker').onclick=()=>{
+ const choice=pendingStrikerChoice;closeStrikerChoice();
+ if(choice&&canAim()){
+  const c=cueBall();aim=Math.atan2(choice.y-c.y,choice.x-c.x);
+ }
+};
+$('cancelStrikerChoice').onclick=closeStrikerChoice;
+function nearestPocket(p){
+ return POCKETS.reduce((best,pk)=>hypot(pk.x-p.x,pk.y-p.y)<hypot(best.x-p.x,best.y-p.y)?pk:best,POCKETS[0]);
+}
+// Native wh.i() game-completion logic, not a generic first-to-eight rule.
+// wh.f0 is true only for PvP/PvC, false for solo. In Free Pyramid the
+// original counts !k7.n OR k7.t!=null, so recently contacted pocketed
+// balls still participate in the terminal check until wh.l() clears t.
+// In Combo Pyramid the original counts !k7.n && !k7.m, and the special
+// one-ball condition depends on wh.k0 (pending remove-ball selection).
+function nativePyramidShouldFinish(state){
+ const competitive=state.playerMode!=='solo';
+ const eightReached=competitive&&state.scores.some(n=>n>=8);
+ if(state.mode==='combo'){
+  const others=state.balls.filter(b=>b.active&&b.id!==state.strikerId).length;
+  return eightReached||others===0||(others===1&&Boolean(state.selectingRemoval));
+ }
+ if(state.mode==='free'){
+  const candidates=state.balls.filter(b=>b.active||b.nativeHitLinked).length;
+  return eightReached||candidates<=1;
+ }
+ return false;
+}
+// Direct translation of wh.l()'s solo victory-score equation. t40.c is
+// zero by default in this APK; its exceptional n()>0 branch is represented
+// by the optional restricted flag for testability. Unlike native Android,
+// a browser has no native app pause/resume lifecycle, so the elapsed time
+// uses the session wall clock (this remains an approximation).
+function nativeSoloVictoryScore({elapsedMs,shots,fouls,friction,pool,restricted=false}){
+ const durationSeconds=Math.max(.001,elapsedMs/1000);
+ const speedScale=Math.pow(2,friction-1); // t40.v -> ia.i
+ let score=Math.pow(durationSeconds,-.8)*40000;
+ if(speedScale>0)score/=speedScale;
+ score=score-shots*.1-fouls;
+ if(pool)score*=10;
+ if(!restricted&&speedScale<=2)score*=2;
+ return Math.max(7,Math.trunc(score));
+}
+function finishSoloResult(won){
+ if(game.playerMode!=='solo')return;
+ game.soloResult=won?'win':'loss';
+ game.soloDurationMs=Math.max(0,Date.now()-(game.startedAt||Date.now()));
+ if(!won){game.soloScore=null;updateRuleHud();return;}
+ game.soloScore=nativeSoloVictoryScore({
+  elapsedMs:game.soloDurationMs,
+  shots:game.played,fouls:game.soloFouls,
+  friction:game.friction,pool:game.mode==='blackball'
+ });
+ try{
+  const key='billiard_native_solo_highscore_'+game.mode;
+  const old=Number(localStorage.getItem(key))||0;
+  if(game.soloScore>old)localStorage.setItem(key,String(game.soloScore));
+ }catch(_error){}
+ updateRuleHud();
+}
+function resolvePyramidRemoval(id,remote=false){
+ // wh.k0 -> wh.u(k7) -> oh[0].run -> wh.r -> k7.q(): tap an eligible
+ // numbered ball, 1200 ms before its native pocket-fall animation starts.
+ if(game.finished||game.mode!=='combo'||!game.selectingRemoval||game.removingBallId!==null||
+    moving()||(!remote&&!ownTurn()))return false;
+ const b=game.balls.find(b=>b.id===id&&b.active&&b.id!==game.strikerId);
+ if(!b)return false;
+ game.removingBallId=id;
+ // wh.u() stores K0 once, before its 1200 ms delay.
+ const selectedPocket=nearestPocket(b);
+ game.removalPocketIndex=POCKETS.indexOf(selectedPocket);
+ showMessage('Ball '+id+' selected…');
+ if(!remote)sendNetwork({kind:'remove',id});
+ clearTimeout(removalTimeout);
+ removalTimeout=setTimeout(()=>{
+   if(!game||game.removingBallId!==id)return;
+   pocket(b,selectedPocket); // no shot: score is NOT incremented by k7.q.
+   game.removingBallId=null;game.removalPocketIndex=null;game.selectingRemoval=false;
+   updateRuleHud();
+   const remaining=game.balls.filter(x=>x.active&&x.id!==game.strikerId).length;
+   if(nativePyramidShouldFinish(game)){
+     game.finished=true;
+     if(game.playerMode==='solo'){
+       game.winner=0;finishSoloResult(true);
+       showMessage('Solo complete! Score '+game.soloScore);
+     }else{
+       game.winner=game.scores[0]===game.scores[1]?null:game.scores[0]>game.scores[1]?0:1;
+       showMessage(game.winner===null?'Game drawn!':'Player '+(game.winner+1)+' wins!');
+     }
+     playSound('applause',.8);
+   }else showMessage(game.turn===0?'Your turn!':game.playerMode==='cpu'?"Computer's turn":'Player 2 turn!');
+   if(!remote)sendNetwork({kind:'state',game:exportState()});
+   if(!game.finished&&game.playerMode==='cpu'&&game.turn===1&&role==='local')
+     cpuTimeout=setTimeout(cpuShoot,1000);
+ },1200);
+ return true;
+}
+function finishPyramidShot(s){
+ const shooter=game.turn,other=1-shooter;
+ const strikerId=s.strikerId??game.strikerId??0;
+ const strikerPotted=s.potted.includes(strikerId);
+ const objectPots=s.potted.filter(id=>id!==strikerId);
+ const made=s.potted.length;
+ game.pyramidBalls[shooter]+=objectPots.length;
+ if(strikerPotted)game.pyramidStrikerPots[shooter]++;
+ game.pyramidShots[shooter]++;
+ // wh.l(): d0.z (striker contacted a ball) unlocks Free selection.
+ game.freeBall=game.mode==='free'&&s.first!==null;
+ const foul=s.first===null||(!s.cushion&&made===0);
+ if(foul){game.pyramidFouls[shooter]++;if(game.playerMode==='solo')game.soloFouls++;}
+ recalculatePyramidScores();
+ // The selected striker is not permanently locked to object #0 in native
+ // Free Pyramid. If it was potted after impact, choose a new playable ball.
+ if(strikerPotted){
+  if(game.mode==='free'&&s.first!==null&&pickAvailableStriker(strikerId)){
+   game.ballInHand=false;
+  }else{
+   safeCueLocation();game.ballInHand=false;
+   if(game.mode==='combo'&&game.balls.some(b=>b.active&&b.id!==strikerId))
+     game.selectingRemoval=true;
+  }
+ }
+ if(game.playerMode==='solo')game.turn=0;
+ else if(foul||!made)game.turn=other;
+ // Evaluate terminal state BEFORE clearing the k7.t collision references;
+ // native wh.l() also calls wh.i() first, then clears them for the next turn.
+ const terminal=nativePyramidShouldFinish(game);
+ game.balls.forEach(b=>b.nativeHitLinked=false);
+ if(terminal){
+  game.finished=true;
+  if(game.playerMode==='solo'){
+    game.winner=0;
+    // Update completed shot count before the solo duration/score calculation.
+    game.played++;
+    finishSoloResult(true);
+    playSound('applause',.8);
+    showMessage('Solo complete! Score '+game.soloScore);
+  }else{
+    game.winner=game.scores[0]===game.scores[1]?null:
+      game.scores[0]>game.scores[1]?0:1;
+    playSound('applause',.8);
+    showMessage(game.winner===null?'Game drawn!':'Player '+(game.winner+1)+' wins!');
+  }
+ }else if(game.selectingRemoval){
+  showMessage(game.playerMode==='cpu'&&game.turn===1?'Computer selecting a white ball…':
+    'Select a numbered ball to remove');
+  announce('Select a numbered ball to remove',2400);
+ }else showMessage(game.turn===0?'Your turn!':
+   game.playerMode==='cpu'?"Computer's turn":'Player 2 turn!');
+ game.firstBreak=false;if(!(terminal&&game.playerMode==='solo'))game.played++;
+ updateRuleHud();
+ const authoritative=localShot;localShot=false;
+ if(authoritative)sendNetwork({kind:'state',game:exportState()});
+ if(remoteSync){const snapshot=remoteSync;remoteSync=null;importState(snapshot);}
+ if(!game.finished&&game.playerMode==='cpu'&&game.turn===1&&role==='local'){
+   cpuTimeout=setTimeout(cpuShoot,1050);
+ }
+ return {made,foul,after:game.scores.slice(),strikerPotted};
+}
+function finishShot(){
+ if(!shot)return;
+ const s=shot;shot=null;
+ if(game.mode!=='blackball')return finishPyramidShot(s);
+ const player=game.turn,opponent=1-player;
+ let black=s.potted.includes(8);
+ const resetOnBreak=black&&game.mode==='blackball'&&game.firstBreak&&game.rules?.resetBlackOnBreak;
+ if(resetOnBreak&&respotBlackBall()){
+  black=false;announce('Black ball respotted after break',1500);
+ }
+ const objects=s.potted.filter(id=>id!==0&&id!==8);
+ const first=game.balls.find(b=>b.id===s.first);
+ const group=game.groups[player];
+ let foul=s.scratched||s.first===null||Boolean(s.eventFoul);
+ if(group){
+  // First-contact legality uses the group's ball count at the start
+  // of the shot, not the count AFTER later pots. This matters if the
+  // final colour and black are pocketed in the same stroke.
+  const ownColor=group==='a'?'red':'yellow';
+  const hasOwn=(Number.isFinite(s.ownBallsAtStart)?s.ownBallsAtStart:
+    remaining(ownColor)+s.potted.filter(id=>{
+      const b=game.balls.find(ball=>ball.id===id);
+      return b&&b.color===ownColor;
+    }).length)>0;
+  if(first){
+   if(hasOwn && groupOf(first)!==group)foul=true;
+   if(!hasOwn&&first.id!==8)foul=true;
+  }
+ }else if(first&&first.id===8&&!game.firstBreak)foul=true;
+ if(s.first!==null&&!s.cushion&&!objects.length&&!black)foul=true;
+ if(game.firstBreak&&s.first!==null){
+  // k7.q() assigns a red/yellow suit on the first shot only when the
+  // original can_choose_suit_on_first_strike preference is true.
+  // The native break exception relaxes first-contact rules, but it must not
+  // erase wh.m(false) already issued by a wrong-colour pocket callback.
+  foul=s.scratched||Boolean(s.eventFoul);
+ }
+ if(!group&&(!game.firstBreak||game.rules?.suitOnFirstStrike)&&!foul){
+  const chosen=objects.map(id=>game.balls.find(b=>b.id===id)).find(Boolean);
+  if(chosen){game.groups[player]=groupOf(chosen);game.groups[opponent]=groupOf(chosen)==='a'?'b':'a';}
+ }
+ // The original exposes t40.m: lose_if_scratch_on_black. A cue-ball
+ // scratch after clearing the colour, when playing the black, is an
+ // immediate loss if the setting is enabled (even if 8 stays on the felt).
+ const ownColor=group==='a'?(game.mode==='blackball'?'red':'solids'):
+   group==='b'?(game.mode==='blackball'?'yellow':'stripes'):null;
+ // An original k7.q() scratch only triggers lose-on-black if the suit was
+ // already cleared WHEN the striker entered the pocket. A later own-colour
+ // pot in the same shot cannot retroactively change the scratch event.
+ const scratchAfterCleared=typeof s.scratchAfterCleared==='boolean'?
+   s.scratchAfterCleared:(ownColor&&remaining(ownColor)===0);
+ const blackScratchLoss=game.mode==='blackball'&&game.rules?.loseIfScratchOnBlack&&
+   !game.firstBreak&&group&&ownColor&&s.scratched&&scratchAfterCleared;
+ if(black||blackScratchLoss){
+  const ownType=group==='a'?(game.mode==='blackball'?'red':'solids'):(game.mode==='blackball'?'yellow':'stripes');
+  const legal=Boolean(group)&&remaining(ownType)===0&&!foul&&!s.blackEarly&&
+    !blackScratchLoss&&!resetOnBreak;
+  game.finished=true;
+  if(game.playerMode==='solo'){
+    game.winner=legal?0:null;
+    if(foul)game.soloFouls++;
+    game.played++;finishSoloResult(legal);
+    showMessage(legal?'Solo complete! Score '+game.soloScore:'Solo game over — foul');
+    announce(legal?'Solo completed':'Solo game lost',4000);
+  }else{
+    game.winner=legal?player:opponent;
+    showMessage((game.winner===0?'Player 1':'Player 2')+' won!');
+    announce('Game over\n'+(game.winner===0?'Player 1':'Player 2')+' wins!',4000);
+  }
+  recordCpuHistory();playSound('applause',.8);
+ }else if(game.playerMode==='solo'){
+  if(foul)game.soloFouls++;
+  game.turn=0;game.ballInHand=s.scratched;
+  if(game.ballInHand)safeCueLocation();
+  showMessage(s.scratched?'Scratch! Ball in hand.':'Your turn!');
+ }else{
+  // k7.q(): pocketing an opponent's colour after suit assignment marks
+  // a foul even when another own-colour ball was also pocketed.
+  const assigned=game.groups[player];
+  const wrongPocket=assigned&&objects.some(id=>{const b=game.balls.find(x=>x.id===id);return b&&groupOf(b)!==assigned;});
+  if(wrongPocket)foul=true;
+  const gotOwn=objects.some(id=>{const b=game.balls.find(x=>x.id===id);return b&&(game.groups[player]?groupOf(b)===game.groups[player]:true);});
+  if(foul||!gotOwn)game.turn=opponent;
+  game.ballInHand=foul;
+  if(foul)safeCueLocation();
+  showMessage(game.ballInHand?'Foul — ball in hand!':game.turn===0?'Your turn!':game.playerMode==='cpu'?'Computer’s turn':'Player 2 turn!');
+  if(foul)announce('Foul!\nCue ball in hand',1300);
+  if(player===1&&game.playerMode==='cpu'&&foul)game.cpuFouls++;
+  if(game.playerMode==='cpu'&&player!==game.turn&&game.turn===1)game.cpuVisits++;
+ }
+ game.firstBreak=false;if(!(game.playerMode==='solo'&&game.finished))game.played++;
+ updateRuleHud();
+ const authoritative=localShot;localShot=false;
+ if(authoritative)sendNetwork({kind:'state',game:exportState()});
+ if(remoteSync){const snapshot=remoteSync;remoteSync=null;importState(snapshot);}
+ if(!game.finished&&game.playerMode==='cpu'&&game.turn===1&&role==='local'){
+  cpuTimeout=setTimeout(cpuShoot,1050);
+ }
+}
+function moveCueBall(x,y,remote=false){
+ if(!game.ballInHand||moving()||(!remote&&!ownTurn()))return false;
+ const c=cueBall();
+ if(!freeBallLocation(x,y,c))return false;
+ c.x=x;c.y=y;c.active=true;game.ballInHand=false;
+ showMessage(game.turn===0?'Your turn!':'Player 2 turn!');
+ if(!remote)sendNetwork({kind:'place',x,y});return true;
+}
+/* CPU aiming translated from the organisation of original jo.c/e/f and
+ * lr.j: generate target/pocket candidates, reject blocked ghost-ball paths,
+ * score cut angle + distance + cue power, and choose by skill. The APK also
+ * evaluates bank shots, simulations and difficulty history; those are not
+ * reconstructed exactly here. The existing simple single-shot heuristic
+ * would aim through unrelated balls and ignore the object-to-pocket line. */
+function distanceToSegment(point,start,end){
+ const dx=end.x-start.x,dy=end.y-start.y;
+ const lenSq=dx*dx+dy*dy;
+ if(lenSq<1e-10)return hypot(point.x-start.x,point.y-start.y);
+ const t=clamp(((point.x-start.x)*dx+(point.y-start.y)*dy)/lenSq,0,1);
+ return hypot(point.x-start.x-t*dx,point.y-start.y-t*dy);
+}
+function clearPath(start,end,except,clearance=DIAM*.94){
+ for(const b of game.balls){
+  if(!b.active||except.has(b.id))continue;
+  if(distanceToSegment(b,start,end)<clearance)return false;
+ }
+ return true;
+}
+// Direct mapping of mt.java's 12 y2 endpoints for portrait orientation:
+// six near the playable lip, six outside, indexed in native constructor order.
+// The canvas uses fitted pixel geometry, so the derived jaw offsets are scaled.
+const NATIVE_POCKET_BEARINGS=[-135,-90,-45,45,90,135];
+function sourceCandidatePocketPoints(pocket){
+ const near=(x,y,angle)=>({x,y,angle,outer:false});
+ const outer=(x,y,angle)=>({x,y,angle,outer:true});
+ const P=FIELD.left,Q=FIELD.right,R=FIELD.top,S=FIELD.bottom;
+ const cy=(R+S)/2, k=BALL_R;
+ // mt.f uses A/B/D-derived outside offsets: the rendered scale factors
+ // aren't identical across Android screens, so these two offsets remain fitted.
+ const cornerOffset=k*1.08,sideOffset=k*1.10;
+ let slot;
+ if(pocket.y<cy-120)slot=pocket.x<(P+Q)/2?0:2;
+ else if(pocket.y>cy+120)slot=pocket.x<(P+Q)/2?5:3;
+ else slot=pocket.x<(P+Q)/2?4:1;
+ const lip=[
+  [P+k,R+k],[Q,cy],[Q-k,R+k],[Q-k,S-k],[P,cy],[P+k,S-k]
+ ];
+ const exterior=[
+  [P-cornerOffset,R-cornerOffset],[Q+sideOffset,cy],
+  [Q+cornerOffset,R-cornerOffset],[Q+cornerOffset,S+cornerOffset],
+  [P-sideOffset,cy],[P-cornerOffset,S+cornerOffset]
+ ];
+ return [near(...lip[slot],NATIVE_POCKET_BEARINGS[slot]),
+  outer(...exterior[slot],NATIVE_POCKET_BEARINGS[slot])];
+}
+// EXACT scoring terms of defpackage.lr.<init>() mapped to browser vectors.
+// The equation and weighting are transcribed; screen-dependent constants
+// (especially the fitted pocket geometry and native power units) remain mapped.
+const NATIVE_SCORE_DIAG_SQ=(FIELD.right-FIELD.left)**2+(FIELD.bottom-FIELD.top)**2;
+const nativeWrappedAngle=d=>((d+180)%360+360)%360-180;
+const nativeVectorQuality=(dx,dy)=>Math.pow(1-((dx*dx+dy*dy)/NATIVE_SCORE_DIAG_SQ),4);
+function nativeAiScore(candidate, cue, target, source={}){
+ const angleDeg=candidate.angle*180/PI;
+ const referenceAngle=Number.isFinite(source.referenceAngle)?source.referenceAngle:aim*180/PI;
+ const computer=source.computer!==false;
+ const trick=Boolean(candidate.bank);
+ const inverseAccuracy=Boolean(source.inverseAccuracy);
+ const forcedTrick=Boolean(source.forcedTrick);
+ const maxSpeed=Math.pow(2,game.friction-1)*400*NATIVE_W;
+ const requiredSpeed=Math.pow(candidate.power/100,1.12)*maxSpeed;
+ let angleValue=((180-Math.abs(nativeWrappedAngle(angleDeg-referenceAngle)))/180)*
+   (computer?(forcedTrick?1e20:1):1000);
+ let cutValue=(90-candidate.cut)/90;
+ const cutPenalty=candidate.cut>85?170-candidate.cut*2:
+   (trick&&candidate.cut<5?candidate.cut*2-10:0);
+ const powerValue=((maxSpeed-requiredSpeed)*5)/maxSpeed;
+ const pocketBearing=candidate.pocketAngle;
+ const travelAngle=Math.atan2(candidate.pocketY-target.y,candidate.pocketX-target.x)*180/PI;
+ const bearingValue=1-Math.abs(nativeWrappedAngle(pocketBearing-travelAngle))/90;
+ const bearingBonus=bearingValue*bearingValue;
+ const bankBonus=trick?(game.mode==='eight'?1:0):2;
+ const nearCue=target.id===cue.id?2:nativeVectorQuality(target.x-cue.x,target.y-cue.y);
+ let contactBonus=candidate.cueDist* candidate.cueDist<BALL_R*BALL_R?0:
+   nativeVectorQuality(candidate.ghostX-cue.x,candidate.ghostY-cue.y);
+ const n=source.weight??(computer?({easy:3,normal:4,hard:5}[settings.difficulty]||4):6);
+ const objectDistanceBonus=nativeVectorQuality(candidate.pocketX-target.x,candidate.pocketY-target.y)*n;
+ const outsidePocketBonus=candidate.outer?clamp(11-6*1.08,0,5):0;
+ const bankPositionPenalty=trick&&(
+   target.x<FIELD.left+BALL_R*1.5||target.x>FIELD.right-BALL_R*1.5||
+   target.y<FIELD.top+BALL_R*1.5||target.y>FIELD.bottom-BALL_R*1.5)?-100:0;
+ // lr constructor contains an additional eight-ball colour-imbalance term;
+ // calculate from actual remaining groups instead of discarding it.
+ let groupBonus=0;
+ if(game.mode==='eight'&&game.groups[game.turn]&&source.groupImbalance!==false){
+  const solids=remaining('solids'),stripes=remaining('stripes');
+  if(solids!==stripes)groupBonus=target.color==='solids'?(solids-stripes)*2:
+    target.color==='stripes'?(stripes-solids)*2:-100;
+ }
+ if(computer&&inverseAccuracy){
+  angleValue=1-angleValue;contactBonus=1-contactBonus;
+ }
+ return angleValue+cutValue+cutPenalty+powerValue+bearingBonus+
+   bankBonus+nearCue+contactBonus+objectDistanceBonus+outsidePocketBonus+
+   bankPositionPenalty+groupBonus;
+}
+// l8.<init>/a() and cc.java: source-faithful adaptive coefficient.
+const NATIVE_CPU_PROFILES={
+ easy:{base:.5,winTarget:1,min:0,max:.9},
+ normal:{base:.67,winTarget:.7,min:.1,max:.95},
+ hard:{base:.9,winTarget:.4,min:.2,max:.99}
+};
+const clampNativeFactor=value=>clamp(value,.5,1.5);
+function nativeAdaptiveCoefficient(difficulty=settings.difficulty,context={}){
+ const p=NATIVE_CPU_PROFILES[difficulty]||NATIVE_CPU_PROFILES.normal;
+ const played=Number(context.gamesPlayed)||0,won=Number(context.gamesWon)||0;
+ let historyFactor=1;
+ if(played>=3){
+  const winRate=clamp(won/played,0,1),target=p.winTarget;
+  historyFactor=winRate<=target?(.5*winRate/target+.5):
+    (.5*(winRate-target)/(1-target)+1);
+ }
+ const cpuScore=Number(context.cpuScore)||0,opponentScore=Number(context.opponentScore)||0;
+ const scoreFactor=clampNativeFactor(Math.pow(.9,Math.max(cpuScore,0)-Math.max(opponentScore,0)));
+ const errorFactor=clampNativeFactor(1-.1*(Number(context.errors)||0));
+ const visits=Number(context.visits)||0;
+ const visitFactor=visits<1?1:Math.min(.1*(visits-1)+1,2);
+ const turns=Number(context.turns)||0;
+ const turnFactor=turns>=20?1+(turns-20)*.05:1;
+ const wonStreak=Number(context.wonStreak)||0,lossStreak=Number(context.lossStreak)||0;
+ const streakFactor=wonStreak>1?clampNativeFactor(1+.2*(wonStreak-1)):
+   lossStreak>1?clampNativeFactor(1-.2*(lossStreak-1)):1;
+ return clamp(p.base*scoreFactor*errorFactor*visitFactor*turnFactor*
+   historyFactor*streakFactor,p.min,p.max);
+}
+function readCpuHistory(level){
+ try{const record=JSON.parse(localStorage.getItem('billiard_cpu_record_v5_'+level)||'null');
+   if(record&&Number.isInteger(record.played)&&Number.isInteger(record.won))return record;
+ }catch(_error){}
+ return {played:0,won:0};
+}
+function recordCpuHistory(){
+ if(game.playerMode!=='cpu'||game.winner===null||game.historyRecorded)return;
+ game.historyRecorded=true;
+ const level=settings.difficulty,history=readCpuHistory(level);
+ history.played++;if(game.winner===1)history.won++;
+ try{localStorage.setItem('billiard_cpu_record_v5_'+level,JSON.stringify(history));}catch(_error){}
+}
+function currentCpuContext(){
+ const history=readCpuHistory(settings.difficulty);
+ const group=game.groups[1];
+ const cpuColor=group==='a'?(game.mode==='eight'?'solids':'red'):
+   group==='b'?(game.mode==='eight'?'stripes':'yellow'):null;
+ const oppColor=group==='a'?(game.mode==='eight'?'stripes':'yellow'):
+   group==='b'?(game.mode==='eight'?'solids':'red'):null;
+ return {...history,gamesPlayed:history.played,gamesWon:history.won,
+   cpuScore:cpuColor?7-remaining(cpuColor):0,
+   opponentScore:oppColor?7-remaining(oppColor):0,
+   errors:game.cpuFouls||0,visits:game.cpuVisits||1,turns:game.cpuShots||0};
+}
+// Original k7.l(x,y,endVelocity) reduces algebraically to the expression
+// below. k7.h0 = 1/k7.T, k7.J initially 15 * 0.006375 = .095625.
+// (pow(h0, log(A)/log(h0)) = A), preserving its distance-to-velocity map.
+function nativeDistanceToSpeed(distance,endVelocity,frameFactor=.095625){
+ const h0=1/Math.pow(.995-.001*game.friction,1.75);
+ return endVelocity+((h0-1)*distance)/frameFactor;
+}
+function estimateCuePower(cueDistance,pocketDistance,cutDegrees){
+ // jo.b() calls k7.l() twice: first the object ball's pocket travel,
+ // then cue-ball travel and 0.99 / cos(cut) impact transfer.
+ // The original jo.j is 30 * screenScale; W/480 approximates scale here.
+ const desiredAtPocket=30*NATIVE_W;
+ const objectSpeed=nativeDistanceToSpeed(pocketDistance,desiredAtPocket);
+ const cutTransfer=Math.max(.000001,Math.cos(cutDegrees*PI/180)*.99);
+ const cueRequired=nativeDistanceToSpeed(cueDistance,objectSpeed/cutTransfer);
+ const maxSpeed=Math.pow(2,game.friction-1)*400*NATIVE_W;
+ return clamp(100*Math.pow(Math.max(0,cueRequired/maxSpeed),1/1.12),4.5,98);
+}
+
+// Exact algebra from l30.f(k7 cue, k7 object, double pocketX,Y):
+// intersection of a circle radius k7.L around the object with the affine
+// constraint line induced by the pocket target. The original jo.f uses this
+// to build extra lr(..., true, ...) candidates, only for game rules 0 or 1.
+function nativeAlternateContact(cue,target,pocket){
+ const X=target.x,Y=target.y;
+ const denominator=pocket.y-Y;
+ if(Math.abs(denominator)<1e-9)return null;
+ const r2=DIAM*DIAM, norm=X*X+Y*Y;
+ const slope=(X-pocket.x)/denominator;
+ const intercept=(Y*pocket.y+X*pocket.x-norm+r2)/denominator;
+ const a=1+slope*slope;
+ const b=-2*(Y*slope+X-slope*intercept);
+ const c=intercept*intercept+norm-2*Y*intercept-r2;
+ const discriminant=b*b-4*a*c;
+ if(discriminant<0||!Number.isFinite(discriminant))return null;
+ const root=Math.sqrt(discriminant);
+ const xx1=(-b+root)/(2*a),xx2=(-b-root)/(2*a);
+ const candidates=[{x:xx1,y:slope*xx1+intercept},{x:xx2,y:slope*xx2+intercept}];
+ candidates.sort((p,q)=>Math.hypot(cue.x-p.x,cue.y-p.y)-Math.hypot(cue.x-q.x,cue.y-q.y));
+ return candidates[0];
+}
+function generateAlternateCpuCandidates(cue,targets){
+ // jo.f's special branch generates offset-contact candidates. The original
+ // virtual-ball restrictions are approximated with a direct unobstructed
+ // path check. These get a modest scoring penalty to avoid selecting them
+ // ahead of unambiguous original direct-shot candidates.
+ const candidates=[];
+ for(const target of targets){
+  for(const pocket of POCKETS){
+   for(const spot of sourceCandidatePocketPoints(pocket)){
+    const contact=nativeAlternateContact(cue,target,spot);
+    if(!contact)continue;
+    const vx=target.x-contact.x,vy=target.y-contact.y,d=Math.hypot(vx,vy);
+    if(d<1e-6)continue;
+    const ghost={x:target.x-vx/d*DIAM*1.0001,y:target.y-vy/d*DIAM*1.0001};
+    if(!nativeInsideRect(ghost.x,ghost.y))continue;
+    const cueDist=Math.hypot(ghost.x-cue.x,ghost.y-cue.y);
+    const toPocket=Math.hypot(spot.x-contact.x,spot.y-contact.y);
+    if(cueDist<DIAM*.5||toPocket<DIAM)continue;
+    const ux=(ghost.x-cue.x)/cueDist,uy=(ghost.y-cue.y)/cueDist;
+    const targetX=(spot.x-contact.x)/toPocket,targetY=(spot.y-contact.y)/toPocket;
+    const cut=Math.acos(clamp(ux*targetX+uy*targetY,-1,1))*180/PI;
+    if(cut>89.99||!clearPath(cue,ghost,new Set([game.strikerId,target.id]))||
+       !clearPath(target,spot,new Set([game.strikerId,target.id]),DIAM*.82))continue;
+    const angle=Math.atan2(uy,ux),power=estimateCuePower(cueDist,toPocket,cut);
+    const candidate={angle,power,cut,ghostX:ghost.x,ghostY:ghost.y,
+      pocketX:spot.x,pocketY:spot.y,pocketAngle:spot.angle,outer:spot.outer,
+      cueDist,toPocket,targetId:target.id,bank:true};
+    candidate.score=nativeAiScore(candidate,cue,target,{})-12;
+    candidates.push(candidate);
+   }
+  }
+ }
+ return candidates;
+}
+
+function generateCpuCandidates(){
+ const cue=cueBall();
+ const objectBalls=game.balls.filter(b=>findTarget(b));
+ const targets=objectBalls; // Native ho.b() cannot invent a black target on an open table.
+ const candidates=[];
+ // jo.c() sets lr.q once per calculation by a 50/50 native coin toss.
+ // This swaps its two accuracy terms when generating computer shots.
+ const inverseAccuracy=game.playerMode==='cpu'&&Math.random()>.5;
+ for(const target of targets){
+  for(const pocket of POCKETS){
+   for(const spot of sourceCandidatePocketPoints(pocket)){
+    const toPocket=hypot(spot.x-target.x,spot.y-target.y);
+    if(toPocket<DIAM||!Number.isFinite(toPocket))continue;
+    const ux=(spot.x-target.x)/toPocket,uy=(spot.y-target.y)/toPocket;
+    // t00.M obtains a prospective cue contact position by subtracting
+    // 1.002 ball diameters along the target-to-pocket direction.
+    const ghost={x:target.x-ux*DIAM*1.002,y:target.y-uy*DIAM*1.002};
+    if(ghost.x<FIELD.left+BALL_R||ghost.x>FIELD.right-BALL_R||
+       ghost.y<FIELD.top+BALL_R||ghost.y>FIELD.bottom-BALL_R)continue;
+    const cueDist=hypot(ghost.x-cue.x,ghost.y-cue.y);
+    if(cueDist<DIAM*.5)continue;
+    const ax=(ghost.x-cue.x)/cueDist,ay=(ghost.y-cue.y)/cueDist;
+    const cosCut=clamp(ax*ux+ay*uy,-1,1);
+    const cut=180/PI*Math.acos(cosCut);
+    // jo.f rejects candidate cut angles above 89.99 degrees.
+    if(cut>=89.99)continue;
+    if(!clearPath(cue,ghost,new Set([game.strikerId,target.id])))continue;
+    if(!clearPath(target,spot,new Set([target.id,game.strikerId]),DIAM*.82))continue;
+    const power=estimateCuePower(cueDist,toPocket,cut);
+    // Candidate rating now uses the recovered lr score calculation.
+    const score=nativeAiScore({angle:Math.atan2(ay,ax),power,cut,
+      cueDist,ghostX:ghost.x,ghostY:ghost.y,pocketX:spot.x,
+      pocketY:spot.y,pocketAngle:spot.angle,outer:spot.outer},cue,target,{inverseAccuracy});
+    candidates.push({angle:Math.atan2(ay,ax),power,score,cut,
+      cueDist,toPocket,targetId:target.id,pocketX:spot.x,pocketY:spot.y,
+      pocketAngle:spot.angle,outer:spot.outer,ghostX:ghost.x,ghostY:ghost.y});
+   }
+  }
+ }
+ // Native jo.f only includes this branch for rule sets 0 and 1 (t40.q()).
+ // Use it when no ordinary direct pocket candidate survives obstruction.
+ if(candidates.length===0)candidates.push(...generateAlternateCpuCandidates(cue,targets));
+ candidates.sort((a,b)=>b.score-a.score);
+ return candidates;
+}
+function selectCpuCandidate(candidates,difficulty=settings.difficulty,random=Math.random){
+ if(!candidates.length)return null;
+ // Original jo.e(): sorted ascending; if adaptive coefficient <= 0.7,
+ // index = round(max(skill,.6)*count), else select the maximum score.
+ // The original selection method doesn't add random angular jitter here.
+ const ranked=candidates.slice().sort((a,b)=>a.score-b.score);
+ const coef=nativeAdaptiveCoefficient(difficulty,currentCpuContext());
+ const index=coef<=.7?Math.min(ranked.length-1,
+   Math.round(Math.max(coef,.6)*ranked.length)):ranked.length-1;
+ return {...ranked[index],adaptiveSkill:coef};
+}
+function cpuShoot(){
+ if(game.finished||game.turn!==1||moving()||role!=='local')return;
+ if(game.selectingRemoval){
+   const chosen=game.balls.find(b=>b.active&&b.id!==game.strikerId);
+   if(chosen)resolvePyramidRemoval(chosen.id);
+   return;
+ }
+ if(game.ballInHand){safeCueLocation(350,1010);game.ballInHand=false;}
+ const shots=generateCpuCandidates();
+ const chosen=selectCpuCandidate(shots);
+ if(chosen){game.cpuShots++;fire(chosen.angle,chosen.power,true);return;}
+ // No viable pocketing candidate: native jo also has penalty/safety shots.
+ // A simple legal object-ball hit is used until those methods are ported.
+ const cue=cueBall();
+ const targets=game.balls.filter(b=>findTarget(b));
+ for(const b of targets){
+  if(!clearPath(cue,b,new Set([game.strikerId,b.id])))continue;
+  game.cpuShots++;fire(Math.atan2(b.y-cue.y,b.x-cue.x),35,true);return;
+ }
+ if(targets.length){
+  const target=targets.reduce((a,b)=>hypot(a.x-cue.x,a.y-cue.y)<hypot(b.x-cue.x,b.y-cue.y)?a:b);
+  game.cpuShots++;fire(Math.atan2(target.y-cue.y,target.x-cue.x),48,true);
+ }
+}
+function calculatePath(){
+ const c=cueBall(),dx=Math.cos(aim),dy=Math.sin(aim);
+ const hit={ball:null,length:1e10};
+ for(const b of game.balls){
+  if(!b.active||b.id===(game.strikerId??0))continue;
+  const vx=b.x-c.x,vy=b.y-c.y,t=vx*dx+vy*dy;
+  if(t<=0)continue;
+  const off=vx*vx+vy*vy-t*t;
+  if(off>=DIAM*DIAM)continue;
+  const dist=t-Math.sqrt(Math.max(0,DIAM*DIAM-off));
+  if(dist>=0&&dist<hit.length){hit.ball=b;hit.length=dist;}
+ }
+ const tX=dx<-.0001?(FIELD.left+BALL_R-c.x)/dx:dx>.0001?(FIELD.right-BALL_R-c.x)/dx:Infinity;
+ const tY=dy<-.0001?(FIELD.top+BALL_R-c.y)/dy:dy>.0001?(FIELD.bottom-BALL_R-c.y)/dy:Infinity;
+ const wall=Math.min(tX>0?tX:Infinity,tY>0?tY:Infinity);
+ if(wall<hit.length){hit.ball=null;hit.length=wall;}
+ if(!Number.isFinite(hit.length))hit.length=600;
+ return hit;
+}
+function drawOriginalTable(){
+ ctx.fillStyle='#050709';ctx.fillRect(0,0,W,H);
+ // Original mt constructor draws #063c3e + three translucent radial gradients
+ // with #304F8283 overlays on portrait devices (not table_field.jpg).
+ ctx.fillStyle='#063c3e';ctx.fillRect(0,0,W,H);
+ ctx.save();ctx.globalCompositeOperation='screen';
+ for(const f of [.25,.5,.75]){
+  const gr=ctx.createRadialGradient(W/2,H*f,0,W/2,H*f,460);
+  gr.addColorStop(0,'rgba(79,130,131,.23)');gr.addColorStop(1,'rgba(79,130,131,0)');
+  ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
+ }ctx.restore();
+ // Portrait rendering path in mt.java combines the original rail_wood
+ // bitmap with rail_blue, rather than using the lime-green "rail2" bitmap.
+ const wood=IMG.rail_wood,blue=IMG.rail_blue;
+ if(wood?.complete&&wood.naturalWidth&&blue?.complete&&blue.naturalWidth){
+  const thickness=77,trim=9,topWidth=478;
+  // Top & bottom horizontal rail segments: teal rubber on the inside edge.
+  ctx.drawImage(wood,111,0,topWidth,thickness-trim);
+  ctx.drawImage(blue,111,thickness-trim,topWidth,trim);
+  ctx.drawImage(wood,111,H-(thickness-trim),topWidth,thickness-trim);
+  ctx.drawImage(blue,111,H-thickness,topWidth,trim);
+  // Side rails: wood grain rotates with the long edge; teal strip faces felt.
+  for(const [from,to] of [[122,641],[759,1278]]){
+    const len=to-from;
+    ctx.save();ctx.translate(0,to);ctx.rotate(-PI/2);
+    ctx.drawImage(wood,0,0,len,thickness-trim);
+    ctx.drawImage(blue,0,thickness-trim,len,trim);ctx.restore();
+    ctx.save();ctx.translate(W,from);ctx.rotate(PI/2);
+    ctx.drawImage(wood,0,0,len,thickness-trim);
+    ctx.drawImage(blue,0,thickness-trim,len,trim);ctx.restore();
+  }
+ }
+ // All 6 pockets are the actual 300x300 / 260x180 gold PNGs.
+ const pc=IMG.pocket_corner,pm=IMG.pocket_middle;
+ if(pc?.complete&&pc.naturalWidth){
+  const sz=134;
+  ctx.drawImage(pc,0,0,sz,sz);
+  ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.drawImage(pc,0,0,sz,sz);ctx.restore();
+  ctx.save();ctx.translate(0,H);ctx.scale(1,-1);ctx.drawImage(pc,0,0,sz,sz);ctx.restore();
+  ctx.save();ctx.translate(W,H);ctx.scale(-1,-1);ctx.drawImage(pc,0,0,sz,sz);ctx.restore();
+ }
+ if(pm?.complete&&pm.naturalWidth){
+  // Pocket-middle originally oriented horizontally for top/bottom. Rotate
+  // 90° to mount them on the two side rails of the portrait table.
+  const across=122,depth=80;
+  ctx.save();ctx.translate(0,700+across/2);ctx.rotate(-PI/2);ctx.drawImage(pm,0,0,across,depth);ctx.restore();
+  ctx.save();ctx.translate(W,700-across/2);ctx.rotate(PI/2);ctx.drawImage(pm,0,0,across,depth);ctx.restore();
+ }
+ // The aiming wheel and the pull-back power gauge are rendered by Android
+ // methods, rather than embedded assets. Rebuild their surface gradients.
+ drawSideControllers();
+}
+function drawSideControllers(){
+ // Right aiming wheel is optional in the native GameActivity preferences.
+ if(!settings.aimingWheel)return drawLeftPowerBar();
+ let x=637,y=831,w=62,h=293;
+ let grad=ctx.createLinearGradient(x,0,x+w,0);
+ grad.addColorStop(0,'#050607');grad.addColorStop(.18,'#303232');grad.addColorStop(.52,'#5c5c5c');grad.addColorStop(.8,'#424344');grad.addColorStop(1,'#050607');
+ ctx.fillStyle='#080809';roundedRect(x-2,y-4,w+4,h+8,16);ctx.fill();
+ ctx.fillStyle=grad;roundedRect(x,y,w,h,15);ctx.fill();
+ ctx.save();ctx.beginPath();ctx.rect(x+2,y+4,w-4,h-8);ctx.clip();
+ for(let n=0;n<58;n++){
+  const pos=y+4+n*5;
+  ctx.strokeStyle=n%5===0?'#151718':'#2b2c2c';ctx.lineWidth=n%5===0?2.5:1.3;
+  ctx.beginPath();ctx.moveTo(x+(n%5===0?18:33),pos);ctx.lineTo(x+w-4,pos);ctx.stroke();
+ }ctx.restore();
+ drawLeftPowerBar();
+}
+function drawLeftPowerBar(){
+ // Left power bar, narrow highlighted wood slider and darker frame.
+ let x=0,y=845,w=58,h=301;
+ ctx.fillStyle='#161718a8';roundedRect(x,y,w,h,7);ctx.fill();
+ const meter=ctx.createLinearGradient(23,0,34,0);
+ meter.addColorStop(0,'#8b6a48');meter.addColorStop(.4,'#f5d39b');meter.addColorStop(1,'#63462a');
+ ctx.fillStyle=meter;roundedRect(24,y+20,8,h-40,2);ctx.fill();
+ if(power>0){
+  const bars=nativePowerSegments(POWER_CONTROL.travel,power/100);
+  for(let n=0;n<bars.count;n++){
+   const rgb=POWER_COLORS[n];ctx.fillStyle='rgb('+rgb.join(',')+')';
+   ctx.fillRect(x,POWER_CONTROL.top+n*(bars.height+bars.gap),w,bars.height);
+  }
+ }
+}
+function roundedRect(x,y,w,h,r){
+ if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,h,r);return;}
+ ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+ ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+ ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+ ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+}
+function drawBalls(){
+ for(const b of game.balls){
+  if(!b.active)continue;
+  const sh=IMG.ball_shadow;
+  if(sh?.complete&&sh.naturalWidth){ctx.save();ctx.globalAlpha=.67;ctx.drawImage(sh,b.x-BALL_R*.94,b.y+BALL_R*.25,DIAM*1.05,DIAM*.65);ctx.restore();}
+  const key=game.mode==='blackball'?('ball_'+b.color):('ball'+String(b.id).padStart(2,'0'));
+  const im=IMG[key];
+  if(im?.complete&&im.naturalWidth)ctx.drawImage(im,b.x-BALL_R,b.y-BALL_R,DIAM,DIAM);
+  else{ctx.fillStyle=b.color==='red'?'#cb2729':b.color==='yellow'?'#e0c421':b.color==='black'?'#17191b':'#fff';ctx.beginPath();ctx.arc(b.x,b.y,BALL_R,0,TWOPI);ctx.fill();}
+  if(game.mode==='free'&&b.id===game.strikerId&&game.strikerId!==0||
+     (game.selectingRemoval&&b.id!==game.strikerId)){
+   ctx.save();ctx.strokeStyle=b.id===game.strikerId?'#f3f2ef':'#f7d987';
+   ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(b.x,b.y,BALL_R+7,0,TWOPI);ctx.stroke();ctx.restore();
+  }
+ }
+ const now=performance.now();
+ pocketFX=pocketFX.filter(f=>(now-f.t)/Math.max(1,f.drawMs)<f.timing.totalFrames);
+ for(const f of pocketFX){
+  const at=(now-f.t)/Math.max(1,f.drawMs);
+  const travel=clamp(at/Math.max(1,f.timing.travelFrames-1),0,1);
+  const end=f.timing.totalFrames;
+  const alpha=f.timing.fadeFrames?
+    clamp((end-at)/f.timing.fadeFrames,0,1):1;
+  const name=f.mode==='blackball'?'ball_'+f.color:'ball'+String(f.id).padStart(2,'0');
+  const im=IMG[name];if(!im?.complete||!im.naturalWidth)continue;
+  const px=f.x+(f.to.x-f.x)*travel,py=f.y+(f.to.y-f.y)*travel;
+  // k7.h() retains full ball size; only alpha changes in final k7.c0 draws.
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.drawImage(im,px-BALL_R,py-BALL_R,DIAM,DIAM);ctx.restore();
+ }
+}
+function drawAim(){
+ if(!canAim()||!cueBall().active)return;
+ if(!settings.aimingLines){drawCue(cueBall());return;}
+ const cue=cueBall(),dx=Math.cos(aim),dy=Math.sin(aim),hit=calculatePath();
+ const stop=clamp(hit.length,1,1260);
+ ctx.save();ctx.strokeStyle='#e7faf4e9';ctx.lineWidth=2.6;
+ ctx.beginPath();ctx.moveTo(cue.x+dx*(BALL_R+2),cue.y+dy*(BALL_R+2));
+ ctx.lineTo(cue.x+dx*stop,cue.y+dy*stop);ctx.stroke();
+ const gx=cue.x+dx*stop,gy=cue.y+dy*stop;
+ ctx.lineWidth=2.4;ctx.strokeStyle='#ebfaf8';
+ ctx.beginPath();ctx.arc(gx,gy,BALL_R+1.5,0,TWOPI);ctx.stroke();
+ if(hit.ball){
+  const obj=hit.ball;
+  let normX=obj.x-gx,normY=obj.y-gy;
+  const n=hypot(normX,normY)||1;normX/=n;normY/=n;
+  ctx.globalAlpha=.67;ctx.beginPath();ctx.moveTo(obj.x,obj.y);
+  ctx.lineTo(obj.x+normX*75,obj.y+normY*75);ctx.stroke();ctx.globalAlpha=1;
+ }
+ ctx.restore();
+ drawCue(cue);
+}
+function drawCue(b){
+ const im=IMG.cue;if(!im?.complete||!im.naturalWidth)return;
+ const length=440,width=20;
+ ctx.save();ctx.translate(b.x,b.y);ctx.rotate(aim);
+ // Image runs from butt to tip (right end), matching ha.a(Canvas, Paint)
+ const tipX=-(BALL_R+23+cueRetraction);
+ ctx.drawImage(im,tipX-length,-width/2,length,width);
+ ctx.restore();
+}
+function drawHandHint(){
+ if(!game.ballInHand||!ownTurn())return;
+ const c=cueBall();ctx.save();ctx.setLineDash([8,7]);ctx.strokeStyle='#fff8';ctx.lineWidth=2.2;
+ ctx.beginPath();ctx.arc(c.x,c.y,BALL_R+9,0,TWOPI);ctx.stroke();ctx.restore();
+}
+// wh.u()/onDraw: preview the stored J0-to-K0 removal path.
+function drawRemovalGuide(){
+ if(game.removingBallId===null||game.removingBallId===undefined)return;
+ const selected=game.balls.find(b=>b.id===game.removingBallId);
+ const target=POCKETS[game.removalPocketIndex];
+ if(!selected||!selected.active||!target)return;
+ ctx.save();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.setLineDash([]);
+ ctx.beginPath();ctx.moveTo(selected.x,selected.y);ctx.lineTo(target.x,target.y);
+ ctx.stroke();ctx.restore();
+}
+function render(){
+ drawOriginalTable();drawBalls();drawHandHint();drawAim();drawRemovalGuide();
+ if(strike)drawCue(cueBall());
+}
+function frame(ts){
+ if(!lastFrame)lastFrame=ts;
+ const frameMs=ts-lastFrame;
+ // wh.onDraw uses a capped running average of measured Android draw time.
+ if(frameMs>0&&frameMs<50){
+  smoothedDrawMs=((drawAverageCount-1)*smoothedDrawMs+frameMs)/drawAverageCount;
+ }
+ drawAverageCount=Math.min(drawAverageCount+1,40);
+ accumulator=Math.min(.12,accumulator+frameMs/1000);lastFrame=ts;
+ const dt=1/150;let iterations=0;
+ while(accumulator>=dt&&iterations++<20){simulate(dt);accumulator-=dt;}
+ render();requestAnimationFrame(frame);
+}
+function screenPos(e){
+ const rect=canvas.getBoundingClientRect();
+ return{x:(e.clientX-rect.left)*W/rect.width,y:(e.clientY-rect.top)*H/rect.height};
+}
+canvas.addEventListener('pointerdown',e=>{
+ if(!ownTurn()||game.finished||pendingStrikerChoice||!$('screenOverlay').hidden)return;
+ e.preventDefault();pointerId=e.pointerId;canvas.setPointerCapture(pointerId);
+ const p=screenPos(e);origin=p;previous=p;dragging=true;
+ if(game.selectingRemoval){
+  // wh.n(): e(x,y,2*mt.H,false). Map mt.H to browser felt width.
+  const found=nearestEligibleBall(game.balls,p.x,p.y,
+    2*(FIELD.right-FIELD.left),game.strikerId);
+  if(found)resolvePyramidRemoval(found.id);
+  dragging=false;pointerMode=null;return;
+ }
+ if(game.ballInHand){
+  pointerMode='place';
+  if(freeBallLocation(p.x,p.y,cueBall())){cueBall().x=p.x;cueBall().y=p.y;}
+  return;
+ }
+ if(!canAim()){pointerMode=null;return;}
+ if(p.x<77&&p.y>805&&p.y<1200){pointerMode='power';choosePower(100*nativePowerRatio(p.y,p.y,POWER_CONTROL.top,POWER_CONTROL.travel,settings.tapToShoot));return;}
+ if(settings.aimingWheel&&p.x>627&&p.y>807&&p.y<1175){
+   pointerMode='wheel';wheelDeltas=[0,0,0];wheelDeltaIndex=0;return;
+ }
+ pointerMode='aim';
+ strikerGesture=null;
+ if(game.mode==='free'&&game.freeBall){
+  const unit=nativeTouchUnit();
+  const candidate=nearestEligibleBall(game.balls,p.x,p.y,36*unit,game.strikerId,true);
+  if(candidate&&candidate.id!==game.strikerId)
+   strikerGesture={id:candidate.id,started:performance.now(),unit};
+ }
+ const c=cueBall(),dx=p.x-c.x,dy=p.y-c.y;
+ aimTouchAngle=Math.atan2(dy,dx);aimDeltas=[0,0,0];aimDeltaIndex=0;
+ if(settings.tapToAim&&!strikerGesture&&hypot(dx,dy)>BALL_R*2)aim=aimTouchAngle;
+});
+canvas.addEventListener('pointermove',e=>{
+ if(e.pointerId!==pointerId||!dragging)return;
+ e.preventDefault();const p=screenPos(e);
+ if(pointerMode==='power'){
+  // Original ko controller reads Y drag, not screen-wide generic slider.
+  choosePower(100*nativePowerRatio(p.y,origin.y,POWER_CONTROL.top,POWER_CONTROL.travel,settings.tapToShoot));
+ }else if(pointerMode==='wheel'){
+  // wh.n() keeps a three-position wheel derivative; b3.y is half the
+  // source wheel height in u7.j(), mapped here to its drawn height/2.
+  const delta=p.y-previous.y;
+  wheelDeltas[wheelDeltaIndex]=delta;
+  wheelDeltaIndex=(wheelDeltaIndex+1)%3;
+  const avg=(wheelDeltas[0]+wheelDeltas[1]+wheelDeltas[2])/3;
+  aim+=avg/(308*.5);
+ }else if(pointerMode==='aim'){
+  const c=cueBall();
+  if(hypot(p.x-c.x,p.y-c.y)>DIAM){
+   const currentAngle=Math.atan2(p.y-c.y,p.x-c.x);
+   // t00.A normalizes signed angle change to ±180°, wh.n averages the
+   // last 3 deltas before ha.e updates the cue angle.
+   const delta=Math.atan2(Math.sin(currentAngle-aimTouchAngle),
+     Math.cos(currentAngle-aimTouchAngle));
+   aimTouchAngle=currentAngle;
+   aimDeltas[aimDeltaIndex]=delta;
+   aimDeltaIndex=(aimDeltaIndex+1)%3;
+   aim+=(aimDeltas[0]+aimDeltas[1]+aimDeltas[2])/3;
+  }
+
+ }else if(pointerMode==='place'&&game.ballInHand){
+  if(freeBallLocation(p.x,p.y,cueBall())){cueBall().x=p.x;cueBall().y=p.y;}
+ }
+ previous=p;
+});
+function pointerEnd(e){
+ if(e.pointerId!==pointerId)return;
+ if(pointerMode==='aim'&&strikerGesture){
+  const p=screenPos(e),g=strikerGesture;
+  const released=nearestEligibleBall(game.balls,p.x,p.y,36*g.unit,game.strikerId,true);
+  const result=strikerTapResult({elapsedMs:performance.now()-g.started,
+   dx:p.x-origin.x,dy:p.y-origin.y,unit:g.unit,candidateId:g.id,
+   releaseId:released?.id,tapToAim:settings.tapToAim});
+  strikerGesture=null;
+  if(result!=='none'){
+   if(result==='choose-or-aim')showStrikerChoice(g.id,p);
+   else chooseFreeStriker(g.id);
+   pointerId=null;pointerMode=null;dragging=false;return;
+  }
+ }
+ if(pointerMode==='power'&&power>1.7)fire(aim,power);
+ // Native tap-to-shoot belongs to the strength control, not the felt.
+ if(pointerMode==='place'&&game.ballInHand){
+  const c=cueBall();moveCueBall(c.x,c.y);
+ }
+ strikerGesture=null;pointerId=null;pointerMode=null;dragging=false;
+}
+canvas.addEventListener('pointerup',pointerEnd);
+canvas.addEventListener('pointercancel',e=>{if(e.pointerId===pointerId){strikerGesture=null;pointerMode=null;pointerId=null;dragging=false;choosePower(0);}});
+// Mouse wheel rotates cue in small increments (the original has a drag wheel).
+canvas.addEventListener('wheel',e=>{if(!canAim())return;e.preventDefault();aim+=Math.sign(e.deltaY)*.012;},{passive:false});
+window.addEventListener('keydown',e=>{
+ if(pendingStrikerChoice){if(e.key==='Escape')closeStrikerChoice();return;}
+ if($('screenOverlay').hidden===false||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+  aim+=(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?.0035:.014);e.preventDefault();
+ }else if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+  choosePower(power+(e.key==='ArrowUp'?5:-5));e.preventDefault();
+ }else if(e.code==='Space'||e.key==='Enter'){
+  if(power<3)choosePower(62);fire(aim,power);e.preventDefault();
+ }else if(e.key==='Escape')setMenu(!$('screenOverlay').hidden);
+});
+function setMenu(open){if(open)closeStrikerChoice();$('screenOverlay').hidden=!open;$('menuToggle').setAttribute('aria-expanded',String(open));}
+$('menuToggle').onclick=()=>setMenu(true);$('close').onclick=()=>setMenu(false);
+$('screenOverlay').addEventListener('click',e=>{if(e.target===$('screenOverlay'))setMenu(false);});
+$('newRack').onclick=()=>{restart(true);savePreferences();setMenu(false);};
+$('soundToggle').onclick=()=>{
+ settings.sound=!settings.sound;game.sound=settings.sound;
+ $('soundToggle').textContent='Sound: '+(settings.sound?'on':'off');savePreferences();
+};
+$('friction').addEventListener('input',()=>{
+ game.friction=Number($('friction').value);
+ $('frictionValue').textContent='Original setting '+game.friction;savePreferences();
+});
+$('difficulty').addEventListener('change',()=>{settings.difficulty=$('difficulty').value;savePreferences();});
+$('pocketSize').addEventListener('change',()=>{
+ if(!shot&&!moving())restart();else settings.pocketSize=Number($('pocketSize').value);savePreferences();
+});
+for(const id of ['aimingLines','aimingWheel','tapToAim','tapToShoot']){
+ $(id).addEventListener('change',()=>{
+  settings.aimingLines=$('aimingLines').checked?2:0;
+  settings.aimingWheel=$('aimingWheel').checked;
+  settings.tapToAim=$('tapToAim').checked;
+  settings.tapToShoot=$('tapToShoot').checked;savePreferences();
+ });
+}
+for(const id of ['resetBlackOnBreak','loseIfScratchOnBlack','suitOnFirstStrike']){
+ $(''+id).addEventListener('change',()=>{if(game)game.rules[id]=$(''+id).checked;savePreferences();});
+}
+$('pyramidPenalty').addEventListener('change',()=>{if(game){game.rules.pyramidPenalty=Number($('pyramidPenalty').value);if(game.mode!=='blackball')recalculatePyramidScores();}savePreferences();});
+// WebRTC manual signalling keeps the single file truly backend-free. It is
+// deliberately optional, and internet NAT traversal is not guaranteed.
+const netOut=$('outSignal'),netIn=$('inSignal'),netState=$('networkState');
+function netStatus(s){netState.textContent=s;}
+function closeNet(){
+ try{channel?.close();rtc?.close();}catch(_e){}
+ channel=null;rtc=null;role='local';netStatus('Not connected');
+}
+function exportState(){
+ return{mode:game.mode,playerMode:game.playerMode,turn:game.turn,
+   groups:game.groups,shotNumber:game.shotNumber,firstBreak:game.firstBreak,
+   winner:game.winner,ballInHand:game.ballInHand,finished:game.finished,
+   played:game.played,friction:game.friction,rules:game.rules,
+   scores:game.scores,soloScore:game.soloScore,soloResult:game.soloResult,soloDurationMs:game.soloDurationMs,soloFouls:game.soloFouls,
+   pyramidFouls:game.pyramidFouls,pyramidShots:game.pyramidShots,
+   pyramidBalls:game.pyramidBalls,pyramidStrikerPots:game.pyramidStrikerPots,
+   strikerId:game.strikerId,freeBall:game.freeBall,selectingRemoval:game.selectingRemoval,removingBallId:game.removingBallId,removalPocketIndex:game.removalPocketIndex,
+   balls:game.balls.map(b=>({...b}))};
+}
+function importState(state){
+ if(!state||!Array.isArray(state.balls)||state.balls.length!==16)return;
+ if(state.balls.some(b=>![b.x,b.y,b.vx,b.vy].every(Number.isFinite)))return;
+ if(!state.balls.some(b=>b.id===(state.strikerId??0)))return;
+ closeStrikerChoice();strikerGesture=null;
+ game={...game,...state,sound:settings.sound,playerMode:'local'};
+ if(game.finished){showMessage(game.soloResult==='win'?'Solo complete! Score '+game.soloScore:game.soloResult==='loss'?'Solo game over':game.winner===null?'Game drawn!':'Player '+(game.winner+1)+' won!');}
+ else if(game.selectingRemoval)showMessage('Select a numbered ball to remove');
+ else showMessage(game.turn===0?'Your turn!':'Player 2 turn!');
+ $('ballSet').value=game.mode;updateRuleHud();
+}
+function sendNetwork(payload){
+ if(channel?.readyState==='open')try{channel.send(JSON.stringify(payload));}catch(_error){}
+}
+function takeMessage(ev){
+ let d;try{d=JSON.parse(ev.data);}catch(_error){return;}
+ if(d.kind==='state'){
+  if(shot)remoteSync=d.game;else importState(d.game);
+ }else if(d.kind==='shot'){
+  if(!ownTurn()&&!shot)fire(Number(d.a),Number(d.p),true);
+ }else if(d.kind==='place'&&game.ballInHand&&!ownTurn())moveCueBall(Number(d.x),Number(d.y),true);
+ else if(d.kind==='striker'&&!ownTurn())chooseFreeStriker(Number(d.id),true);
+ else if(d.kind==='remove'&&game.selectingRemoval&&!ownTurn())resolvePyramidRemoval(Number(d.id),true);
+}
+function bindDataChannel(ch){
+ channel=ch;
+ ch.onopen=()=>{netStatus('Connected • '+(role==='host'?'Player 1':'Player 2'));
+  if(role==='host')sendNetwork({kind:'state',game:exportState()});
+ };
+ ch.onmessage=takeMessage;
+ ch.onclose=()=>netStatus('Peer disconnected');
+ ch.onerror=()=>netStatus('Connection error');
+}
+async function gather(pc){
+ if(pc.iceGatheringState==='complete')return;
+ await Promise.race([new Promise(resolve=>{
+  pc.addEventListener('icegatheringstatechange',()=>{if(pc.iceGatheringState==='complete')resolve();});
+ }),new Promise(resolve=>setTimeout(resolve,9000))]);
+}
+function makePeer(which){
+ closeNet();role=which;
+ rtc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+ rtc.ondatachannel=e=>bindDataChannel(e.channel);
+ rtc.onconnectionstatechange=()=>netStatus('Peer connection: '+rtc.connectionState);
+ return rtc;
+}
+$('makeOffer').onclick=async()=>{
+ try{
+  const pc=makePeer('host');bindDataChannel(pc.createDataChannel('billiard'));
+  await pc.setLocalDescription(await pc.createOffer());await gather(pc);
+  netOut.value=JSON.stringify(pc.localDescription);
+  netStatus('Invitation ready — send code to other player');
+ }catch(e){netStatus('Unable to create invitation: '+e.message);}
+};
+$('makeAnswer').onclick=async()=>{
+ try{
+  const offer=JSON.parse(netIn.value);if(offer.type!=='offer')throw Error('Paste an invitation first');
+  const pc=makePeer('guest');await pc.setRemoteDescription(offer);
+  await pc.setLocalDescription(await pc.createAnswer());await gather(pc);
+  netOut.value=JSON.stringify(pc.localDescription);
+  netStatus('Answer ready — send code back to host');
+ }catch(e){netStatus('Unable to join: '+e.message);}
+};
+$('takeAnswer').onclick=async()=>{
+ try{
+  if(!rtc||role!=='host')throw Error('Create an invitation first');
+  const answer=JSON.parse(netIn.value);if(answer.type!=='answer')throw Error('Paste your friend’s answer');
+  await rtc.setRemoteDescription(answer);netStatus('Connecting to other player…');
+ }catch(e){netStatus('Unable to accept answer: '+e.message);}
+};
+$('copySignal').onclick=async()=>{
+ try{await navigator.clipboard.writeText(netOut.value);netStatus('Copied to clipboard');}
+ catch(_e){netOut.focus();netOut.select();netStatus('Select and copy the highlighted code');}
+};
+$('endNetwork').onclick=closeNet;
+$('ballSet').value='blackball';$('players').value='local';
+loadPreferences();
+$('soundToggle').textContent='Sound: '+(settings.sound?'on':'off');
+restart();requestAnimationFrame(frame);
+})();
+
+</script>
+</body></html>
