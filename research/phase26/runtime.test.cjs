@@ -5,7 +5,7 @@ const html=fs.readFileSync(process.argv[2],'utf8'),nodes={},timers=new Map();let
 const context2d=new Proxy({lineTo:(x,y)=>endpoint=[x,y],measureText:()=>({width:20})},{get:(o,k)=>k in o?o[k]:()=>{}});
 function node(id){return nodes[id]||(nodes[id]={value:({ballSet:'blackball',players:'local',friction:'2',pocketSize:'20',difficulty:'normal',pyramidPenalty:'0'})[id]||'',checked:false,hidden:true,textContent:'',style:{},tagName:'DIV',addEventListener(name,fn){this[name]=fn},setAttribute(){},focus(){},getContext:()=>context2d,getBoundingClientRect:()=>({left:0,top:0,width:700,height:1400}),setPointerCapture(){}})}
 const sandbox={console,Math:Object.assign(Object.create(Math),{random:()=>0}),Date,JSON,Promise,Set,Map,Number,Boolean,String,Array,Object,Infinity,
- document:{getElementById:node,querySelector:()=>node('table'),activeElement:null},
+ document:{getElementById:node,querySelector:()=>node('table'),activeElement:null,hidden:false,addEventListener(){}},history:{pushState(){}},
  Image:class{constructor(){this.complete=true;this.naturalWidth=96}},Audio:class{},
  localStorage:{getItem:key=>savedRecords.get(key)||null,setItem:(key,value)=>savedRecords.set(key,value)},performance:{time:0,now(){return this.time}},
  setTimeout(fn){timers.set(++timerId,fn);return timerId},clearTimeout(id){timers.delete(id)},requestAnimationFrame(){},addEventListener(){},navigator:{}};

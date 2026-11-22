@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#060a0b">
-<title>TEST FIXTURE — Billiards v22</title>
+<title>TEST FIXTURE — Billiards v23</title>
 <style>
 :root{color-scheme:dark;font-family:Roboto,'Arial',system-ui,sans-serif;background:#050708;color:#e8ebe9}
 *{box-sizing:border-box}html,body{margin:0;padding:0;width:100%;height:100%;height:100dvh;overflow:hidden;background:#050708}
@@ -37,6 +37,8 @@ body{display:grid;place-items:center}button,input,select,textarea{font:inherit}
 .app-modal>section{background:#12334b;color:#fff;padding:24px;border-radius:12px;max-width:520px;width:100%;max-height:85vh;overflow:auto}
 .app-modal table{width:100%;border-collapse:collapse;margin:16px 0}.app-modal th,.app-modal td{padding:10px;text-align:left;border-bottom:1px solid #ffffff30}
 .app-modal .stats{white-space:pre-line;line-height:1.8}.app-modal h2{margin-top:0}
+.native-chooser{text-align:center}.native-chooser button{display:block;width:80%;margin:12px auto;padding:14px;font-size:1.1em}
+.quit-buttons{display:flex;gap:10px;justify-content:center}.quit-buttons button{flex:1;padding:12px}
 </style>
 </head>
 <body>
@@ -61,13 +63,21 @@ body{display:grid;place-items:center}button,input,select,textarea{font:inherit}
 <div id="resultModal" class="app-modal" hidden><section role="dialog" aria-modal="true" aria-label="Game result">
  <h2 id="resultTitle">Game over</h2><p id="resultStats" class="stats"></p><button id="closeResult">OK</button>
  </section></div>
+<div id="chooserModal" class="app-modal" hidden><section role="dialog" aria-modal="true" aria-labelledby="chooserTitle" class="native-chooser">
+ <h2 id="chooserTitle">Select Game Type</h2>
+ <button id="chooseMode1">1 Player</button><button id="chooseMode2">Human vs Computer</button><button id="chooseMode3">2 Players</button>
+ </section></div>
+<div id="quitModal" class="app-modal" hidden><section role="dialog" aria-modal="true" aria-label="Quit game">
+ <h2>Quit this game?</h2>
+ <div class="quit-buttons"><button id="quitYes">Yes</button><button id="quitNo">No</button><button id="quitRestart">Restart</button></div>
+ </section></div>
 <div id="screenOverlay" hidden>
  <section id="panel" role="dialog" aria-modal="true" aria-label="Billiards menu">
   <header><div><h1>Pool Billiards</h1><div class="sub">Original APK resources • HTML reconstruction</div></div><button id="close" aria-label="Close menu">×</button></header>
   <div class="group"><strong>Game</strong>
    <label>Original game rules<select id="ballSet"><option value="free">Free Pyramid — numbered balls</option><option value="combo">Combo Pyramid — numbered balls</option><option value="blackball" selected>Pool (8-Ball) — red/yellow/black</option></select></label>
    <label>Players<select id="players"><option value="local">Two players • same device</option><option value="cpu">You vs computer</option><option value="solo">Single player practice</option></select></label>
-   <div class="buttons"><button id="newRack" class="primary">New game / rack</button><button id="soundToggle">Sound: on</button></div>
+   <div class="buttons"><button id="newRack" class="primary">New game / rack</button><button id="soundToggle">Sound: on</button><button id="musicToggle">Music: off</button></div>
    <label>Ball speed / friction<input id="friction" type="range" min="0" max="8" value="2"><output id="frictionValue">Original setting 2</output></label>
    <label>Original pocket size<select id="pocketSize">
       <option value="10">Small</option>
@@ -103,7 +113,7 @@ body{display:grid;place-items:center}button,input,select,textarea{font:inherit}
    <label>Paste received invitation/answer<textarea id="inSignal" aria-label="Received invite"></textarea></label>
    <div class="buttons"><button id="copySignal">Copy my code</button><button id="endNetwork">Disconnect</button></div><output id="networkState">Not connected</output>
   </details>
-  <footer>Billiards browser port · v22</footer>
+  <footer>Billiards browser port · v23</footer>
  </section>
 </div>
 <script>
@@ -157,7 +167,7 @@ const POCKETS=[{x:70,y:71,type:'corner'},{x:630,y:71,type:'corner'},
  {x:70,y:700,type:'middle'},{x:630,y:700,type:'middle'},
  {x:70,y:1329,type:'corner'},{x:630,y:1329,type:'corner'}];
 const IMG={},AUDIO={}; let assetsReady=false;
-const audioKeys=['cue_strike','balls_collide','ball_in_pocket','applause'];
+const audioKeys=['cue_strike','balls_collide','ball_in_pocket','applause','entertainer'];
 let lastCollision=0;
 for(const [name,uri] of Object.entries(ORIGINAL_ASSETS)) {
  if(audioKeys.includes(name)){AUDIO[name]=uri;continue;}
@@ -196,7 +206,8 @@ function savePreferences(){
   tapToShoot:$('tapToShoot').checked,
   suitOnFirstStrike:$('suitOnFirstStrike').checked,pyramidPenalty:Number($('pyramidPenalty').value),
   resetBlackOnBreak:$('resetBlackOnBreak').checked,
-  loseIfScratchOnBlack:$('loseIfScratchOnBlack').checked
+  loseIfScratchOnBlack:$('loseIfScratchOnBlack').checked,
+  music:music.enabled
  }));}catch(_error){}
 }
 function loadPreferences(){
@@ -218,6 +229,7 @@ function loadPreferences(){
   if([0,1].includes(v.pyramidPenalty))$('pyramidPenalty').value=String(v.pyramidPenalty);
   if(typeof v.resetBlackOnBreak==='boolean')$('resetBlackOnBreak').checked=v.resetBlackOnBreak;
   if(typeof v.loseIfScratchOnBlack==='boolean')$('loseIfScratchOnBlack').checked=v.loseIfScratchOnBlack;
+  if(typeof v.music==='boolean')music.enabled=v.music;
  }catch(_error){}
 }
 
@@ -262,6 +274,7 @@ function restart(showToast=false){
  strikerGesture=null;closeStrikerChoice();
  clearTimeout(cpuTimeout);clearTimeout(removalTimeout);
  ballSet=$('ballSet').value;playerMode=$('players').value;
+ nativeMode={solo:'single',cpu:'pvc',local:'pvp'}[playerMode]||'pvp';
  settings.firstTurn=Number($('firstTurn').value);settings.powerSide=$('powerSide').value;
  settings.friction=Number($('friction').value);
  settings.pocketSize=Number($('pocketSize').value);
@@ -1884,7 +1897,7 @@ function render(){
 }
 // Browser translations of dlg_records and dlg_game_won screen content.
 function closeAppModal(){
- appModal=null;$('recordsModal').hidden=true;$('resultModal').hidden=true;
+ appModal=null;$('recordsModal').hidden=true;$('resultModal').hidden=true;hideNavigationModals();
 }
 function showRecords(){
  closeStrikerChoice();closeAppModal();appModal='records';
@@ -1916,6 +1929,210 @@ function maybeShowResult(){
   $('resultModal').hidden=false;$('closeResult').focus();
  },350);
 }
+
+// Phase 27 — music, translated from km / mb / t40 in the recovered app:
+//  * one track, "track_1" = res/raw/entertainer.mid, looping (MediaPlayer.setLooping(true));
+//  * preference music_track defaults to "off" (t40: getString("music_track","off"));
+//  * volume = music_volume / 100, music_volume default 35 (GameActivity: d("music_volume",35));
+//  * on resume (v3 case 2) playback continues from the saved position only if it was paused
+//    less than 5000 ms ago, otherwise it starts from the beginning.
+// Browsers have no General MIDI player, so the file is parsed here and played with a small
+// Web Audio piano-like voice. The notes and timing come from the original file; the timbre is
+// NOT Android's Sonivox synthesiser and is not claimed to match it.
+const NATIVE_MUSIC_VOLUME=35;
+function parseMidi(bytes){
+ const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
+ const str=(p)=>String.fromCharCode(u8[p],u8[p+1],u8[p+2],u8[p+3]);
+ const u32=(p)=>((u8[p]<<24)|(u8[p+1]<<16)|(u8[p+2]<<8)|u8[p+3])>>>0;
+ const u16=(p)=>(u8[p]<<8)|u8[p+1];
+ if(str(0)!=='MThd')throw new Error('Not a MIDI file');
+ const tracks=u16(10),division=u16(12);
+ if(division&0x8000)throw new Error('SMPTE timing unsupported');
+ const events=[];let p=8+u32(4);
+ for(let t=0;t<tracks&&p<u8.length;t++){
+  if(str(p)!=='MTrk')throw new Error('Bad track');
+  const end=p+8+u32(p+4);let i=p+8,tick=0,status=0;
+  const vlq=()=>{let v=0,b;do{b=u8[i++];v=(v<<7)|(b&127);}while(b&128&&i<end);return v;};
+  while(i<end){
+   tick+=vlq();let st=u8[i];
+   if(st&0x80){i++;if(st<0xF0)status=st;}else st=status;
+   if(st===0xFF){const type=u8[i++],len=vlq();
+    if(type===0x51)events.push({tick,type:'tempo',usPerQuarter:(u8[i]<<16)|(u8[i+1]<<8)|u8[i+2]});
+    i+=len;
+   }else if(st===0xF0||st===0xF7){i+=vlq();}
+   else{const hi=st&0xF0,ch=st&15;
+    if(hi===0xC0||hi===0xD0){i+=1;}
+    else{const a=u8[i],b=u8[i+1];i+=2;
+     if(hi===0x90&&b>0)events.push({tick,type:'on',ch,note:a,vel:b});
+     else if(hi===0x80||hi===0x90)events.push({tick,type:'off',ch,note:a});
+    }
+   }
+  }
+  p=end;
+ }
+ events.sort((a,b)=>a.tick-b.tick||(a.type==='tempo'?-1:0));
+ // Convert ticks to seconds through the tempo map, then pair note on/off.
+ let usPerQuarter=500000,lastTick=0,seconds=0;const open=new Map(),notes=[];
+ for(const e of events){
+  seconds+=(e.tick-lastTick)*usPerQuarter/division/1e6;lastTick=e.tick;
+  if(e.type==='tempo'){usPerQuarter=e.usPerQuarter;continue;}
+  const key=e.ch*128+e.note;
+  if(e.type==='on'){if(!open.has(key))open.set(key,[]);open.get(key).push({start:seconds,note:e.note,vel:e.vel,ch:e.ch});}
+  else{const list=open.get(key);if(list&&list.length){const n=list.shift();n.end=seconds;if(n.end>n.start)notes.push(n);}}
+ }
+ for(const list of open.values())for(const n of list){n.end=seconds;if(n.end>n.start)notes.push(n);}
+ notes.sort((a,b)=>a.start-b.start);
+ return{notes,duration:seconds};
+}
+const music={enabled:false,song:null,ctx:null,gain:null,startedAt:0,offset:0,nextIndex:0,
+ timer:0,playing:false,pausedAt:0,pausedPosition:0,voices:new Set()};
+function musicSong(){
+ if(music.song!==null)return music.song;
+ try{
+  const uri=typeof ORIGINAL_ASSETS==='object'&&ORIGINAL_ASSETS.entertainer;
+  if(!uri)return music.song=false;
+  const bin=atob(uri.split(',')[1]);const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  music.song=parseMidi(bytes);
+ }catch(_error){music.song=false;}
+ return music.song;
+}
+function musicPosition(){return music.playing?music.ctx.currentTime-music.startedAt:music.pausedPosition;}
+function musicVoice(n,when){
+ const ctx=music.ctx,f=440*Math.pow(2,(n.note-69)/12),len=Math.max(.05,n.end-n.start);
+ const env=ctx.createGain(),peak=.22*(n.vel/127);
+ env.gain.setValueAtTime(0,when);env.gain.linearRampToValueAtTime(peak,when+.008);
+ env.gain.exponentialRampToValueAtTime(peak*.35,when+Math.min(len,.4)+.01);
+ env.gain.setTargetAtTime(0,when+len,.08);
+ env.connect(music.gain);
+ for(const [type,mult,level] of [['triangle',1,1],['sine',2,.25]]){
+  const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=f*mult;g.gain.value=level;
+  osc.connect(g);g.connect(env);osc.start(when);osc.stop(when+len+.5);
+  music.voices.add(osc);osc.onended=()=>music.voices.delete(osc);
+ }
+}
+function musicSchedule(){
+ const song=music.song;if(!music.playing||!song)return;
+ const horizon=music.ctx.currentTime+.4;
+ for(;;){
+  if(music.nextIndex>=song.notes.length){
+   // setLooping(true): next pass starts where this one ends.
+   music.startedAt+=song.duration;music.nextIndex=0;
+  }
+  const n=song.notes[music.nextIndex],when=music.startedAt+n.start;
+  if(when>horizon)break;
+  if(when>=music.ctx.currentTime-.02)musicVoice(n,Math.max(when,music.ctx.currentTime));
+  music.nextIndex++;
+ }
+}
+function musicStart(fromPosition=0){
+ const song=musicSong();if(!music.enabled||!song||music.playing)return false;
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;
+  if(!music.ctx){music.ctx=new AC();music.gain=music.ctx.createGain();music.gain.connect(music.ctx.destination);}
+  music.gain.gain.value=Math.min(Math.max(NATIVE_MUSIC_VOLUME/100,0),1);
+  if(music.ctx.state==='suspended')music.ctx.resume().catch(()=>{});
+  const pos=fromPosition%song.duration;
+  music.startedAt=music.ctx.currentTime+.05-pos;
+  music.nextIndex=song.notes.findIndex(n=>n.start>=pos);if(music.nextIndex<0)music.nextIndex=0;
+  music.playing=true;musicSchedule();music.timer=setInterval(musicSchedule,100);
+  return true;
+ }catch(_error){music.playing=false;return false;}
+}
+function musicStop(remember=true){
+ if(!music.playing)return;
+ if(remember){music.pausedPosition=musicPosition();music.pausedAt=Date.now();}
+ else{music.pausedPosition=0;music.pausedAt=0;}
+ music.playing=false;clearInterval(music.timer);music.timer=0;
+ for(const osc of music.voices){try{osc.stop();}catch(_error){}}
+ music.voices.clear();
+}
+function musicResume(){
+ // v3 case 2: continue only after a short (< 5 s) interruption.
+ const recent=music.pausedAt&&Date.now()-music.pausedAt<5000;
+ return musicStart(recent?music.pausedPosition:0);
+}
+function setMusicEnabled(on){
+ music.enabled=Boolean(on);
+ if(music.enabled){music.pausedAt=0;music.pausedPosition=0;musicStart(0);}else musicStop(false);
+ const button=$('musicToggle');if(button)button.textContent='Music: '+(music.enabled?'on':'off');
+}
+document.addEventListener('visibilitychange',()=>{
+ if(!music.enabled)return;if(document.hidden)musicStop(true);else musicResume();
+});
+// Browsers only allow audio after a user gesture; the first tap starts enabled music.
+window.addEventListener('pointerdown',()=>{if(music.enabled&&!music.playing&&!document.hidden)musicResume();},{capture:true});
+
+// Phase 27 — native navigation flow, translated from the recovered app:
+//  zb.d()  dlg_choose_game_type "Select Game Type": 1 Player / Human vs Computer / 2 Players
+//          (lb 0/1/2 -> vh.SINGLE / vh.PvC / vh.PvP). GameActivity starts with vh.UNKNOWN and
+//          onResume shows this chooser while the mode is UNKNOWN.
+//  zb.c()  same layout titled "Select Difficulty": Easy / Normal / Hard (lb 6/7/8), PvC only.
+//  dlg_quit_game "Quit this game?" Yes (lb 10 -> GameActivity.w) / No (lb 9 -> z, resume) /
+//          Restart (xb 0 -> y, new game). w(): PvC -> difficulty chooser, otherwise game-type chooser.
+//  nn back handler: with a zb dialog showing, back acts by dialog id (zb.a):
+//          5 quit -> w(); 1 game type -> leave app; 2 difficulty -> game-type chooser;
+//          4 preferences -> close; 3 result -> restart. With no dialog and mode != UNKNOWN -> quit dialog.
+//  oh/xb 1: the game-result OK button restarts the game (y()), it does not merely close.
+const NATIVE_MODE_TO_PLAYERS={single:'solo',pvc:'cpu',pvp:'local'};
+let nativeMode='unknown';
+function hideNavigationModals(){
+ $('chooserModal').hidden=true;$('quitModal').hidden=true;
+}
+function showGameTypeChooser(){
+ // zb.d(): mode becomes UNKNOWN; nothing on the table may run underneath.
+ clearTimeout(cpuTimeout);clearTimeout(resultDialogTimer);resultDialogTimer=0;
+ if(game)game.resultPresented=true;
+ nativeMode='unknown';closeStrikerChoice();closeAppModal();setMenu(false);appModal='gameType';
+ $('chooserTitle').textContent='Select Game Type';
+ $('chooseMode1').textContent='1 Player';$('chooseMode2').textContent='Human vs Computer';$('chooseMode3').textContent='2 Players';
+ $('chooserModal').hidden=false;$('chooseMode1').focus();
+}
+function showDifficultyChooser(){
+ clearTimeout(cpuTimeout);closeStrikerChoice();closeAppModal();setMenu(false);appModal='difficulty';
+ $('chooserTitle').textContent='Select Difficulty';
+ $('chooseMode1').textContent='Easy';$('chooseMode2').textContent='Normal';$('chooseMode3').textContent='Hard';
+ $('chooserModal').hidden=false;$('chooseMode1').focus();
+}
+function startNativeMode(mode,difficulty){
+ nativeMode=mode;$('players').value=NATIVE_MODE_TO_PLAYERS[mode];
+ if(difficulty)$('difficulty').value=difficulty;
+ closeAppModal();restart();savePreferences();
+}
+function chooseNative(index){
+ if(appModal==='gameType'){
+  if(index===1)startNativeMode('single');
+  else if(index===2){nativeMode='pvc';showDifficultyChooser();}
+  else startNativeMode('pvp');
+ }else if(appModal==='difficulty')startNativeMode('pvc',['easy','normal','hard'][index-1]);
+}
+function showQuitDialog(){
+ if(nativeMode==='unknown')return false;
+ closeStrikerChoice();closeAppModal();setMenu(false);appModal='quit';
+ $('quitModal').hidden=false;$('quitNo').focus();
+ return true;
+}
+function quitYes(){
+ // GameActivity.w(): leave the current game; a network game is disconnected first.
+ if(role!=='local'&&typeof closeNet==='function')closeNet();
+ if(nativeMode==='pvc')showDifficultyChooser();else showGameTypeChooser();
+}
+function quitRestart(){closeAppModal();restart(true);}
+function resultOk(){closeAppModal();restart();}
+// Android back. Returns true when handled.
+function nativeBack(){
+ if(appModal==='quit'){quitYes();return true;}
+ if(appModal==='gameType')return false; // native leaves the app; a page cannot close itself
+ if(appModal==='difficulty'){showGameTypeChooser();return true;}
+ if(appModal==='result'){resultOk();return true;}
+ if(appModal){closeAppModal();return true;}
+ if(pendingStrikerChoice){closeStrikerChoice();return true;}
+ if(!$('screenOverlay').hidden){setMenu(false);return true;}
+ return showQuitDialog();
+}
+// Browser/phone back gesture -> nativeBack, via one history guard entry.
+function armBackGuard(){try{history.pushState({billiardBack:true},'');}catch(_error){}}
+window.addEventListener('popstate',()=>{if(nativeBack())armBackGuard();});
 
 function frame(ts){
  maybeShowResult();
@@ -2028,7 +2245,8 @@ canvas.addEventListener('pointercancel',e=>{if(e.pointerId===pointerId){strikerG
 // Mouse wheel rotates cue in small increments (the original has a drag wheel).
 canvas.addEventListener('wheel',e=>{if(!canAim())return;e.preventDefault();aim+=Math.sign(e.deltaY)*.012;},{passive:false});
 window.addEventListener('keydown',e=>{
- if(appModal){if(e.key==='Escape')closeAppModal();return;}
+ if(appModal){if(e.key==='Escape')nativeBack();return;}
+ if(e.key==='Escape'&&!$('screenOverlay').hidden){setMenu(false);return;}
  if(pendingStrikerChoice){if(e.key==='Escape')closeStrikerChoice();return;}
  if($('screenOverlay').hidden===false||/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||''))return;
  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
@@ -2037,13 +2255,16 @@ window.addEventListener('keydown',e=>{
   choosePower(power+(e.key==='ArrowUp'?5:-5));e.preventDefault();
  }else if(e.code==='Space'||e.key==='Enter'){
   if(power<3)choosePower(62);fire(aim,power);e.preventDefault();
- }else if(e.key==='Escape')setMenu(!$('screenOverlay').hidden);
+ }else if(e.key==='Escape')nativeBack();
 });
 function setMenu(open){if(open)closeStrikerChoice();$('screenOverlay').hidden=!open;$('menuToggle').setAttribute('aria-expanded',String(open));}
 $('menuToggle').onclick=()=>setMenu(true);$('close').onclick=()=>setMenu(false);
 $('screenOverlay').addEventListener('click',e=>{if(e.target===$('screenOverlay'))setMenu(false);});
 $('showRecords').onclick=showRecords;
-$('closeRecords').onclick=closeAppModal;$('closeResult').onclick=closeAppModal;
+$('closeRecords').onclick=closeAppModal;$('closeResult').onclick=resultOk;
+$('chooseMode1').onclick=()=>chooseNative(1);$('chooseMode2').onclick=()=>chooseNative(2);$('chooseMode3').onclick=()=>chooseNative(3);
+$('quitYes').onclick=quitYes;$('quitNo').onclick=closeAppModal;$('quitRestart').onclick=quitRestart;
+$('musicToggle').onclick=()=>{setMusicEnabled(!music.enabled);savePreferences();};
 $('firstTurn').onchange=()=>{settings.firstTurn=Number($('firstTurn').value);savePreferences();};
 $('powerSide').onchange=()=>{settings.powerSide=$('powerSide').value;savePreferences();};
 $('fullscreenButton').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch(_error){announce('Full screen is unavailable in this browser');}};
@@ -2169,7 +2390,10 @@ $('endNetwork').onclick=closeNet;
 $('ballSet').value='blackball';$('players').value='local';
 loadPreferences();
 $('soundToggle').textContent='Sound: '+(settings.sound?'on':'off');
+$('musicToggle').textContent='Music: '+(music.enabled?'on':'off');
 restart();requestAnimationFrame(frame);
+// GameActivity starts in vh.UNKNOWN; onResume shows the game-type chooser.
+showGameTypeChooser();armBackGuard();
 })();
 
 </script>

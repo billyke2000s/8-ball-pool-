@@ -35,3 +35,5 @@ The table is a custom Android `View`, not web technology. `wh.onTouchEvent(Motio
 - The original third-party app's redistribution rights have not been verified. Do not publicly push decompiled proprietary code or assets without confirming permission.
 
 To reproduce the full extraction from an APK copy, use the source recovery script on this branch.
+
+The playable private HTML (original art, sounds and music) is rebuilt from the APK with `python3 scripts/build-private-html.py Billiard.apk Billiards.html`. It no longer depends on files held in a chat; see `research/phase27/README.md`.
