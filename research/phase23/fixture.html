@@ -340,11 +340,11 @@ function fire(a=aim,p=power,remote=false){
  const nativePower=power/100;
  const nativeSpeed=Math.pow(nativePower,1.12)*Math.pow(2,game.friction-1)*400*NATIVE_W;
  const magnitude=nativeSpeed*NATIVE_SPEED_TO_PX_PER_SEC;
- shot={first:null,potted:[],scratched:false,cushion:false,owner:game.turn,
+ shot={first:null,potted:[],nativePotted:[],scratched:false,cushion:false,owner:game.turn,
       black:false,strikerId:c.id,blackEarly:false,scratchAfterCleared:false,
       ownBallsAtStart:game.mode==='blackball'&&game.groups[game.turn]?
        remaining(game.groups[game.turn]==='a'?'red':'yellow'):null,
-      eventFoul:false,firstSuitPotted:null,colorPocketOrder:[]};
+      eventFoul:false,groupAtStart:game.groups[game.turn],firstSuitPotted:null,colorPocketOrder:[]};
  // wh.l() clears prior-hit references before the next strike.
  game.balls.forEach(b=>b.nativeHitLinked=false);
  localShot=!remote;game.shotNumber++;
@@ -444,6 +444,16 @@ function nativePocketDestination(b,pk){
  const dy=pk.type==='middle'?((pk.x<W/2)?-.1*BALL_R:.1*BALL_R):0;
  return {x:pk.x,y:pk.y+dy};
 }
+// k7.q(): t==null -> wh.m(true); no scoring callback is reached.
+// wh.l(): d0.z==false -> wh.m(true). Neither method requires a cushion hit.
+function nativeShotFoul(firstContact,eventFoul){
+ return firstContact===null||Boolean(eventFoul);
+}
+function nativePyramidCredits(shot){
+ const ids=Array.isArray(shot.nativePotted)?shot.nativePotted:shot.potted;
+ const striker=shot.strikerId??0;
+ return {objects:ids.filter(id=>id!==striker).length,striker:ids.includes(striker)?1:0};
+}
 function pocket(b,pk){
  if(!b.active)return;
  const speed=hypot(b.vx,b.vy)/NATIVE_SPEED_TO_PX_PER_SEC;
@@ -453,7 +463,14 @@ function pocket(b,pk){
  // k7.q() processes pots in chronological order, not only at shot end.
  // ho.c()/ho.g() select the suit on the FIRST eligible colour pot; each
  // subsequent enemy-colour pot invokes wh.m(false), recording one foul.
- if(shot&&game.mode==='blackball'){
+ // A pot without any original k7.t contact reference is a foul, not a point.
+ const linked=Boolean(b.nativeHitLinked);
+ if(shot){
+  if(!linked)shot.eventFoul=true;
+  else shot.nativePotted.push(b.id);
+  if(game.mode==='blackball'&&b.id===8&&!linked)shot.unlinkedBlack=true;
+ }
+ if(shot&&game.mode==='blackball'&&linked){
    const player=shot.owner,other=1-player;
    const assigned=game.groups[player];
    const own=assigned==='a'?'red':assigned==='b'?'yellow':null;
@@ -1120,12 +1137,13 @@ function finishPyramidShot(s){
  const strikerPotted=s.potted.includes(strikerId);
  const objectPots=s.potted.filter(id=>id!==strikerId);
  const made=s.potted.length;
- game.pyramidBalls[shooter]+=objectPots.length;
- if(strikerPotted)game.pyramidStrikerPots[shooter]++;
+ const credits=nativePyramidCredits(s);
+ game.pyramidBalls[shooter]+=credits.objects;
+ game.pyramidStrikerPots[shooter]+=credits.striker;
  game.pyramidShots[shooter]++;
  // wh.l(): d0.z (striker contacted a ball) unlocks Free selection.
  game.freeBall=game.mode==='free'&&s.first!==null;
- const foul=s.first===null||(!s.cushion&&made===0);
+ const foul=nativeShotFoul(s.first,s.eventFoul);
  if(foul){game.pyramidFouls[shooter]++;if(game.playerMode==='solo')game.soloFouls++;}
  recalculatePyramidScores();
  // The selected striker is not permanently locked to object #0 in native
@@ -1135,12 +1153,12 @@ function finishPyramidShot(s){
    game.ballInHand=false;
   }else{
    safeCueLocation();game.ballInHand=false;
-   if(game.mode==='combo'&&game.balls.some(b=>b.active&&b.id!==strikerId))
+   if(game.mode==='combo'&&credits.striker&&game.balls.some(b=>b.active&&b.id!==strikerId))
      game.selectingRemoval=true;
   }
  }
  if(game.playerMode==='solo')game.turn=0;
- else if(foul||!made)game.turn=other;
+ else if(foul||!(credits.objects+credits.striker))game.turn=other;
  // Evaluate terminal state BEFORE clearing the k7.t collision references;
  // native wh.l() also calls wh.i() first, then clears them for the next turn.
  const terminal=nativePyramidShouldFinish(game);
@@ -1182,6 +1200,7 @@ function finishShot(){
  if(game.mode!=='blackball')return finishPyramidShot(s);
  const player=game.turn,opponent=1-player;
  let black=s.potted.includes(8);
+ if(black&&s.unlinkedBlack){respotBlackBall();black=false;}
  const resetOnBreak=black&&game.mode==='blackball'&&game.firstBreak&&game.rules?.resetBlackOnBreak;
  if(resetOnBreak&&respotBlackBall()){
   black=false;announce('Black ball respotted after break',1500);
@@ -1190,29 +1209,24 @@ function finishShot(){
  const first=game.balls.find(b=>b.id===s.first);
  const group=game.groups[player];
  let foul=s.scratched||s.first===null||Boolean(s.eventFoul);
- if(group){
+ const firstContactGroup=Object.prototype.hasOwnProperty.call(s,'groupAtStart')?s.groupAtStart:group;
+ if(firstContactGroup){
   // First-contact legality uses the group's ball count at the start
   // of the shot, not the count AFTER later pots. This matters if the
   // final colour and black are pocketed in the same stroke.
-  const ownColor=group==='a'?'red':'yellow';
+  const ownColor=firstContactGroup==='a'?'red':'yellow';
   const hasOwn=(Number.isFinite(s.ownBallsAtStart)?s.ownBallsAtStart:
     remaining(ownColor)+s.potted.filter(id=>{
       const b=game.balls.find(ball=>ball.id===id);
       return b&&b.color===ownColor;
     }).length)>0;
   if(first){
-   if(hasOwn && groupOf(first)!==group)foul=true;
+   if(hasOwn && groupOf(first)!==firstContactGroup)foul=true;
    if(!hasOwn&&first.id!==8)foul=true;
   }
- }else if(first&&first.id===8&&!game.firstBreak)foul=true;
- if(s.first!==null&&!s.cushion&&!objects.length&&!black)foul=true;
- if(game.firstBreak&&s.first!==null){
-  // k7.q() assigns a red/yellow suit on the first shot only when the
-  // original can_choose_suit_on_first_strike preference is true.
-  // The native break exception relaxes first-contact rules, but it must not
-  // erase wh.m(false) already issued by a wrong-colour pocket callback.
-  foul=s.scratched||Boolean(s.eventFoul);
- }
+ }else if(first&&first.id===8)foul=true;
+ // wh.l() has no generic no-cushion/no-pot foul rule.
+ // Native first-contact fouls are not cleared by the break flag.
  if(!group&&(!game.firstBreak||game.rules?.suitOnFirstStrike)&&!foul){
   const chosen=objects.map(id=>game.balls.find(b=>b.id===id)).find(Boolean);
   if(chosen){game.groups[player]=groupOf(chosen);game.groups[opponent]=groupOf(chosen)==='a'?'b':'a';}
@@ -1771,7 +1785,7 @@ function drawRemovalGuide(){
  const selected=game.balls.find(b=>b.id===game.removingBallId);
  const target=POCKETS[game.removalPocketIndex];
  if(!selected||!selected.active||!target)return;
- ctx.save();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.setLineDash([]);
+ ctx.save();ctx.strokeStyle='#ffff00';ctx.lineWidth=2;ctx.setLineDash([]);
  ctx.beginPath();ctx.moveTo(selected.x,selected.y);ctx.lineTo(target.x,target.y);
  ctx.stroke();ctx.restore();
 }
