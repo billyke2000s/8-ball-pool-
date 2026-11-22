@@ -1,0 +1,13 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {nearestEligibleBall:pick}=require('./selection');
+const balls=[{id:0,x:0,y:0,active:true},{id:1,x:20,y:0,active:true},{id:2,x:10,y:0,active:true},{id:3,x:1,y:0,active:false}];
+test('closest eligible ball wins over list order',()=>assert.equal(pick(balls,0,0,100,0).id,2));
+test('striker excluded unless enabled',()=>assert.equal(pick(balls,0,0,100,0,true).id,0));
+test('potted balls excluded',()=>assert.equal(pick(balls,1,0,100,0).id,2));
+test('strict radius excludes exact boundary',()=>assert.equal(pick(balls,0,0,10,0),null));
+test('equal distances keep native list order',()=>assert.equal(pick([{id:1,x:-1,y:0,active:true},{id:2,x:1,y:0,active:true}],0,0,2,0).id,1));
+test('empty candidates return null',()=>assert.equal(pick([],0,0,100,0),null));
+test('dynamic striker excluded',()=>assert.equal(pick(balls,10,0,100,2).id,0));
+test('wide native selection accepts a distant tap',()=>assert.equal(pick(balls,500,500,1104,0).id,1));
