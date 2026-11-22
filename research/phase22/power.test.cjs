@@ -1,0 +1,11 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {nativePowerRatio:ratio,nativePowerSegments:segments,POWER_COLORS}=require('./power');
+test('drag origin produces zero strength',()=>assert.equal(ratio(900,900,845,301,false),0));
+test('drag spans the full native control travel',()=>assert.equal(ratio(1050,900,845,300,false),.5));
+test('upward drag clamps to zero',()=>assert.equal(ratio(800,900,845,301,false),0));
+test('downward drag clamps to one',()=>assert.equal(ratio(1500,900,845,301,false),1));
+test('tap reads absolute position on bar',()=>assert.equal(ratio(995,995,845,300,true),.5));
+test('empty power draws no bands',()=>assert.equal(segments(301,0).count,0));
+test('full power retains all 19 native colours',()=>{assert.equal(POWER_COLORS.length,19);assert.equal(segments(301,1).count,19)});
+test('first band appears for small nonzero power',()=>assert.equal(segments(301,.001).count,1));
