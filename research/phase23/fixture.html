@@ -1125,6 +1125,7 @@ function resolvePyramidRemoval(id,remote=false){
      }
      playSound('applause',.8);
    }else showMessage(game.turn===0?'Your turn!':game.playerMode==='cpu'?"Computer's turn":'Player 2 turn!');
+   if(game.finished)recordCpuHistory();
    if(!remote)sendNetwork({kind:'state',game:exportState()});
    if(!game.finished&&game.playerMode==='cpu'&&game.turn===1&&role==='local')
      cpuTimeout=setTimeout(cpuShoot,1000);
@@ -1184,6 +1185,7 @@ function finishPyramidShot(s){
   announce('Select a numbered ball to remove',2400);
  }else showMessage(game.turn===0?'Your turn!':
    game.playerMode==='cpu'?"Computer's turn":'Player 2 turn!');
+ if(game.finished)recordCpuHistory();
  game.firstBreak=false;if(!(terminal&&game.playerMode==='solo'))game.played++;
  updateRuleHud();
  const authoritative=localShot;localShot=false;
@@ -1428,17 +1430,23 @@ function nativeAdaptiveCoefficient(difficulty=settings.difficulty,context={}){
    historyFactor*streakFactor,p.min,p.max);
 }
 function readCpuHistory(level){
- try{const record=JSON.parse(localStorage.getItem('billiard_cpu_record_v5_'+level)||'null');
+ try{let record=JSON.parse(localStorage.getItem('billiard_cpu_record_v6_'+level)||'null');
+   if(!record){
+    const old=JSON.parse(localStorage.getItem('billiard_cpu_record_v5_'+level)||'null');
+    // v5 counted CPU wins; native nWon counts human wins. Legacy draws were omitted.
+    if(old&&Number.isInteger(old.played)&&Number.isInteger(old.won))
+      record={played:old.played,won:old.played-old.won};
+   }
    if(record&&Number.isInteger(record.played)&&Number.isInteger(record.won))return record;
  }catch(_error){}
  return {played:0,won:0};
 }
 function recordCpuHistory(){
- if(game.playerMode!=='cpu'||game.winner===null||game.historyRecorded)return;
+ if(game.playerMode!=='cpu'||!game.finished||game.historyRecorded)return;
  game.historyRecorded=true;
  const level=settings.difficulty,history=readCpuHistory(level);
- history.played++;if(game.winner===1)history.won++;
- try{localStorage.setItem('billiard_cpu_record_v5_'+level,JSON.stringify(history));}catch(_error){}
+ history.played++;if(game.winner!==1)history.won++;
+ try{localStorage.setItem('billiard_cpu_record_v6_'+level,JSON.stringify(history));}catch(_error){}
 }
 function currentCpuContext(){
  const history=readCpuHistory(settings.difficulty);
@@ -1448,8 +1456,8 @@ function currentCpuContext(){
  const oppColor=group==='a'?(game.mode==='eight'?'stripes':'yellow'):
    group==='b'?(game.mode==='eight'?'solids':'red'):null;
  return {...history,gamesPlayed:history.played,gamesWon:history.won,
-   cpuScore:cpuColor?7-remaining(cpuColor):0,
-   opponentScore:oppColor?7-remaining(oppColor):0,
+   cpuScore:game.mode!=='blackball'?game.scores[1]:(cpuColor?7-remaining(cpuColor):0),
+   opponentScore:game.mode!=='blackball'?game.scores[0]:(oppColor?7-remaining(oppColor):0),
    errors:game.cpuFouls||0,visits:game.cpuVisits||1,turns:game.cpuShots||0};
 }
 // Original k7.l(x,y,endVelocity) reduces algebraically to the expression
@@ -1519,7 +1527,7 @@ function generateAlternateCpuCandidates(cue,targets,inverseAccuracy=false){
     const angle=Math.atan2(uy,ux),power=estimateCuePower(cueDist,toPocket,cut);
     const candidate={angle,power,cut,ghostX:ghost.x,ghostY:ghost.y,
       pocketX:spot.x,pocketY:spot.y,pocketAngle:spot.angle,outer:spot.outer,
-      cueDist,toPocket,targetId:target.id,bank:true};
+      cueDist,toPocket,targetId:target.id,pocketIndex:POCKETS.indexOf(pocket),bank:true};
     candidate.score=nativeAiScore(candidate,cue,target,{inverseAccuracy});
     candidates.push(candidate);
    }
@@ -1563,7 +1571,7 @@ function generateCpuCandidatesForStriker(cue,inverseAccuracy){
       pocketY:spot.y,pocketAngle:spot.angle,outer:spot.outer},cue,target,{inverseAccuracy});
     candidates.push({angle:Math.atan2(ay,ax),power,score,cut,
       cueDist,toPocket,targetId:target.id,pocketX:spot.x,pocketY:spot.y,
-      pocketAngle:spot.angle,outer:spot.outer,ghostX:ghost.x,ghostY:ghost.y});
+      pocketAngle:spot.angle,outer:spot.outer,pocketIndex:POCKETS.indexOf(pocket),ghostX:ghost.x,ghostY:ghost.y});
    }
   }
  }
@@ -1595,10 +1603,44 @@ function selectCpuCandidate(candidates,difficulty=settings.difficulty,random=Mat
    Math.round(Math.max(coef,.6)*ranked.length)):ranked.length-1;
  return {...ranked[index],adaptiveSkill:coef};
 }
+// kp.<init>, including the duplicate endpoint filter checked in kp.smali.
+function nativeRemovalScore(ball,shots,balls,pockets,diameter,diagonalSquared){
+ const targeted=shots.filter(s=>s.targetId===ball.id);
+ const retained=targeted.filter(s=>s.outer||!targeted.some(other=>
+  other.outer&&other.pocketIndex===s.pocketIndex&&Boolean(other.bank)===Boolean(s.bank)));
+ const wrap=d=>((d+180)%360+360)%360-180;
+ let pocketQuality=0;
+ for(const p of pockets){
+  if(!p.outer)continue;
+  const dx=p.x-ball.x,dy=p.y-ball.y;
+  const quality=1-Math.abs(wrap(p.angle-Math.atan2(dy,dx)*180/Math.PI))/90;
+  pocketQuality+=Math.pow(quality,4)*Math.pow(1-(dx*dx+dy*dy)/diagonalSquared,4);
+ }
+ let crowding=0;
+ for(const other of balls){
+  if(!other.active||other.id===ball.id)continue;
+  const dx=ball.x-other.x,dy=ball.y-other.y;
+  crowding+=diameter*diameter/(dx*dx+dy*dy);
+ }
+ const shotQuality=retained.length?retained.reduce((sum,s)=>sum+Math.max(0,s.score),0):-1000;
+ return -shotQuality+crowding*10+(1-pocketQuality*.4)*10-retained.length*10;
+}
+function selectRemovalBall(balls,strikerId,shots,pockets,diameter,diagonalSquared){
+ let chosen=null,score=-Infinity;
+ for(const ball of balls){
+  if(!ball.active||ball.id===strikerId)continue;
+  const value=nativeRemovalScore(ball,shots,balls,pockets,diameter,diagonalSquared);
+  if(chosen===null||value>score){chosen=ball;score=value;}
+ }
+ return chosen;
+}
 function cpuShoot(){
  if(game.finished||game.turn!==1||moving()||role!=='local')return;
  if(game.selectingRemoval){
-   const chosen=game.balls.find(b=>b.active&&b.id!==game.strikerId);
+   // x2.a ranks removals with kp, rather than taking the first live ball.
+   const candidates=generateCpuCandidates();
+   const endpoints=POCKETS.flatMap(p=>sourceCandidatePocketPoints(p));
+   const chosen=selectRemovalBall(game.balls,game.strikerId,candidates,endpoints,DIAM,NATIVE_SCORE_DIAG_SQ);
    if(chosen)resolvePyramidRemoval(chosen.id);
    return;
  }
