@@ -1,17 +1,17 @@
 'use strict';
 // Execute the actual standalone HTML scripts, with drawing/DOM/time mocked.
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync(process.argv[2],'utf8'),nodes={},timers=new Map();let timerId=0,endpoint=null;
+const html=fs.readFileSync(process.argv[2],'utf8'),nodes={},timers=new Map();let timerId=0,endpoint=null;const savedRecords=new Map();
 const context2d=new Proxy({lineTo:(x,y)=>endpoint=[x,y],measureText:()=>({width:20})},{get:(o,k)=>k in o?o[k]:()=>{}});
 function node(id){return nodes[id]||(nodes[id]={value:({ballSet:'blackball',players:'local',friction:'2',pocketSize:'20',difficulty:'normal',pyramidPenalty:'0'})[id]||'',checked:false,hidden:true,textContent:'',style:{},tagName:'DIV',addEventListener(name,fn){this[name]=fn},setAttribute(){},focus(){},getContext:()=>context2d,getBoundingClientRect:()=>({left:0,top:0,width:700,height:1400}),setPointerCapture(){}})}
 const sandbox={console,Math:Object.assign(Object.create(Math),{random:()=>0}),Date,JSON,Promise,Set,Map,Number,Boolean,String,Array,Object,Infinity,
  document:{getElementById:node,querySelector:()=>node('table'),activeElement:null},
  Image:class{constructor(){this.complete=true;this.naturalWidth=96}},Audio:class{},
- localStorage:{getItem:()=>null,setItem(){}},performance:{time:0,now(){return this.time}},
+ localStorage:{getItem:key=>savedRecords.get(key)||null,setItem:(key,value)=>savedRecords.set(key,value)},performance:{time:0,now(){return this.time}},
  setTimeout(fn){timers.set(++timerId,fn);return timerId},clearTimeout(id){timers.delete(id)},requestAnimationFrame(){},addEventListener(){},navigator:{}};
 sandbox.window=sandbox;vm.createContext(sandbox);
 const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
-scripts[1]=scripts[1].replace('restart();requestAnimationFrame(frame);',`restart();window.t={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,get shot(){return shot},fire,simulate,pocket,finishShot,nativeAiScore,generateCpuCandidates,generateCpuCandidatesForStriker,selectCpuCandidate,cpuShoot,get power(){return power},choosePower,chooseFreeStriker,finishPyramidShot,settings,canAim};requestAnimationFrame(frame);`);
+scripts[1]=scripts[1].replace('restart();requestAnimationFrame(frame);',`restart();window.t={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,get shot(){return shot},fire,simulate,pocket,finishShot,nativeAiScore,recordCpuHistory,readCpuHistory,currentCpuContext,selectRemovalBall,sourceCandidatePocketPoints,POCKETS,DIAM,NATIVE_SCORE_DIAG_SQ,generateCpuCandidates,generateCpuCandidatesForStriker,selectCpuCandidate,cpuShoot,get power(){return power},choosePower,chooseFreeStriker,finishPyramidShot,settings,canAim};requestAnimationFrame(frame);`);
 for(const script of scripts)vm.runInContext(script,sandbox);
 const t=sandbox.t;
 function setup(){node('ballSet').value='combo';t.restart();t.game.sound=false;t.game.selectingRemoval=true;timers.clear()}
@@ -104,6 +104,18 @@ t.settings.difficulty='hard';assert.equal(t.nativeAiScore(sample,cue,redTarget),
 t.game.balls.find(b=>b.color==='red').active=false;
 assert.ok(Math.abs((t.nativeAiScore(sample,cue,redTarget)-t.nativeAiScore(sample,cue,yellowTarget))-4)<1e-10,'open Pool uses potted-colour imbalance');
 t.game.groups=['a','b'];assert.equal(t.nativeAiScore(sample,cue,redTarget),t.nativeAiScore(sample,cue,yellowTarget),'assigned Pool removes imbalance term');
+node('ballSet').value='combo';node('players').value='cpu';t.restart();t.game.sound=false;t.game.turn=1;t.game.firstBreak=false;t.game.selectingRemoval=true;
+const removalOptions=t.generateCpuCandidates(),endpoints=t.POCKETS.flatMap(p=>t.sourceCandidatePocketPoints(p));
+const removal=t.selectRemovalBall(t.game.balls,t.game.strikerId,removalOptions,endpoints,t.DIAM,t.NATIVE_SCORE_DIAG_SQ);
+t.cpuShoot();assert.equal(t.game.removingBallId,removal.id,'Combo CPU removal follows native rank');
+savedRecords.clear();t.settings.difficulty='hard';savedRecords.set('billiard_cpu_record_v5_hard',JSON.stringify({played:5,won:2}));
+assert.equal(t.readCpuHistory('hard').won,3,'legacy CPU wins converted to human results');
+t.game.playerMode='cpu';t.game.finished=true;t.game.historyRecorded=false;t.game.winner=0;t.recordCpuHistory();
+assert.equal(t.readCpuHistory('hard').played,6);assert.equal(t.readCpuHistory('hard').won,4,'human win counted');
+t.recordCpuHistory();assert.equal(t.readCpuHistory('hard').played,6,'history recorded once');
+t.game.historyRecorded=false;t.game.winner=1;t.recordCpuHistory();assert.equal(t.readCpuHistory('hard').won,4,'CPU win does not increase native win count');
+t.game.historyRecorded=false;t.game.winner=null;t.recordCpuHistory();assert.equal(t.readCpuHistory('hard').won,5,'native result N counts competitive draw');
+t.game.mode='free';t.game.scores=[5,2];assert.equal(t.currentCpuContext().cpuScore,2);assert.equal(t.currentCpuContext().opponentScore,5,'Pyramid score feeds adaptive skill');
 for(const mode of ['blackball','free','combo']){
  node('ballSet').value=mode;t.restart();t.game.sound=false;t.fire(-Math.PI/2,70);
  for(let i=0;i<18000&&t.shot;i++)t.simulate(1/150);
