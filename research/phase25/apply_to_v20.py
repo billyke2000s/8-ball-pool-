@@ -49,4 +49,28 @@ edit('if(chosen){game.cpuShots++;fire(chosen.angle,chosen.power,true);return;}',
  }''')
 s=s.replace(" // Use it when no ordinary direct pocket candidate survives obstruction.", " // Native jo.f includes these alongside ordinary candidates in Pyramid.")
 s=s.replace(" // path check. These get a modest scoring penalty to avoid selecting them\n // ahead of unambiguous original direct-shot candidates.", " // path check. Use the recovered lr score without an invented penalty.")
+removal=Path(__file__).with_name('removal.js').read_text()
+removal=removal[removal.index('// kp.'):removal.index('module.exports')]
+edit('function cpuShoot(){',removal+"function cpuShoot(){")
+edit("const chosen=game.balls.find(b=>b.active&&b.id!==game.strikerId);", """// x2.a ranks removals with kp, rather than taking the first live ball.
+   const candidates=generateCpuCandidates();
+   const endpoints=POCKETS.flatMap(p=>sourceCandidatePocketPoints(p));
+   const chosen=selectRemovalBall(game.balls,game.strikerId,candidates,endpoints,DIAM,NATIVE_SCORE_DIAG_SQ);""")
+edit('pocketAngle:spot.angle,outer:spot.outer,ghostX:ghost.x,ghostY:ghost.y});', 'pocketAngle:spot.angle,outer:spot.outer,pocketIndex:POCKETS.indexOf(pocket),ghostX:ghost.x,ghostY:ghost.y});')
+edit('cueDist,toPocket,targetId:target.id,bank:true};', 'cueDist,toPocket,targetId:target.id,pocketIndex:POCKETS.indexOf(pocket),bank:true};')
+edit("if(game.playerMode!=='cpu'||game.winner===null||game.historyRecorded)return;", "if(game.playerMode!=='cpu'||!game.finished||game.historyRecorded)return;")
+edit('history.played++;if(game.winner===1)history.won++;', 'history.played++;if(game.winner!==1)history.won++;')
+edit("try{const record=JSON.parse(localStorage.getItem('billiard_cpu_record_v5_'+level)||'null');", """try{let record=JSON.parse(localStorage.getItem('billiard_cpu_record_v6_'+level)||'null');
+   if(!record){
+    const old=JSON.parse(localStorage.getItem('billiard_cpu_record_v5_'+level)||'null');
+    // v5 counted CPU wins; native nWon counts human wins. Legacy draws were omitted.
+    if(old&&Number.isInteger(old.played)&&Number.isInteger(old.won))
+      record={played:old.played,won:old.played-old.won};
+   }""")
+edit("localStorage.setItem('billiard_cpu_record_v5_'+level", "localStorage.setItem('billiard_cpu_record_v6_'+level")
+edit('cpuScore:cpuColor?7-remaining(cpuColor):0,', "cpuScore:game.mode!=='blackball'?game.scores[1]:(cpuColor?7-remaining(cpuColor):0),")
+edit('opponentScore:oppColor?7-remaining(oppColor):0,', "opponentScore:game.mode!=='blackball'?game.scores[0]:(oppColor?7-remaining(oppColor):0),")
+# Terminal Pyramid paths were previously omitted from adaptive match history.
+edit("game.firstBreak=false;if(!(terminal&&game.playerMode==='solo'))game.played++;", "if(game.finished)recordCpuHistory();\n game.firstBreak=false;if(!(terminal&&game.playerMode==='solo'))game.played++;")
+edit("}else showMessage(game.turn===0?'Your turn!':game.playerMode==='cpu'?\"Computer's turn\":'Player 2 turn!');", "}else showMessage(game.turn===0?'Your turn!':game.playerMode==='cpu'?\"Computer's turn\":'Player 2 turn!');\n   if(game.finished)recordCpuHistory();")
 Path(sys.argv[2]).write_text(s)
