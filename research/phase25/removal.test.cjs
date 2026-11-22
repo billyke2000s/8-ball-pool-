@@ -1,0 +1,11 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {nativeRemovalScore:score,selectRemovalBall:select}=require('./removal');
+const a={id:1,x:100,y:100,active:true},b={id:2,x:500,y:500,active:true};
+test('no shot options has native +1000 contribution',()=>assert.equal(score(a,[],[a],[],35,2000000),1010));
+test('negative shot quality is clamped to zero',()=>assert.equal(score(a,[{targetId:1,score:-20,outer:true}], [a],[],35,2000000),0));
+test('duplicate near endpoint omitted when matching outer exists',()=>assert.equal(score(a,[{targetId:1,score:20,outer:false,pocketIndex:0},{targetId:1,score:30,outer:true,pocketIndex:0}],[a],[],35,2000000),-30));
+test('different trick flag keeps near endpoint',()=>assert.equal(score(a,[{targetId:1,score:20,outer:false,pocketIndex:0,bank:true},{targetId:1,score:30,outer:true,pocketIndex:0,bank:false}],[a],[],35,2000000),-60));
+test('crowding contributes inverse squared distance',()=>assert.equal(score(a,[],[a,{id:2,x:135,y:100,active:true}],[],35,2000000),1020));
+test('striker and inactive balls never selected',()=>assert.equal(select([{...a,active:false},b],2,[],[],35,2000000),null));
+test('removes hard-to-pot object over easy object',()=>assert.equal(select([a,b],0,[{targetId:1,score:100,outer:true}],[],35,2000000).id,2));
