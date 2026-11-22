@@ -8,7 +8,7 @@ const {chromium}=require('playwright');
  try{
  const page=await browser.newPage({viewport:{width:412,height:915}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- const html=fs.readFileSync(process.argv[2]||require('node:path').join(__dirname,'fixture.html'),'utf8').replace('restart();requestAnimationFrame(frame);',`restart();window.portTest={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,nearestEligibleBall,exportState,chooseFreeStriker,settings,canAim,choosePower,finishShot,finishPyramidShot,pocket,get power(){return power},get shot(){return shot},fire,simulate};requestAnimationFrame(frame);`);
+ const html=fs.readFileSync(process.argv[2]||require('node:path').join(__dirname,'fixture.html'),'utf8').replace('restart();requestAnimationFrame(frame);',`restart();window.portTest={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,nearestEligibleBall,exportState,chooseFreeStriker,settings,canAim,choosePower,finishShot,finishPyramidShot,pocket,generateCpuCandidates,selectCpuCandidate,cpuShoot,get power(){return power},get shot(){return shot},fire,simulate};requestAnimationFrame(frame);`);
  await page.setContent(html);
  const setup=()=>{const t=window.portTest;document.getElementById('ballSet').value='combo';document.getElementById('players').value='local';t.restart();t.game.sound=false;t.game.selectingRemoval=true;return t;};
  await page.evaluate(setup);
@@ -59,6 +59,22 @@ const {chromium}=require('playwright');
   },{mode,speed,power});
   assert.deepEqual(result,{fired:true,settled:true,finite:true},`${mode} speed=${speed} power=${power}`);sweep++;
  }
+ for(const mode of ['blackball','free','combo'])for(const difficulty of ['easy','normal','hard']){
+  const result=await page.evaluate(({mode,difficulty})=>{
+   document.getElementById('ballSet').value=mode;document.getElementById('players').value='cpu';document.getElementById('difficulty').value=difficulty;document.getElementById('friction').value='2';
+   portTest.restart();portTest.game.sound=false;portTest.game.turn=1;portTest.game.firstBreak=false;portTest.game.freeBall=mode==='free';
+   const snapshot=JSON.stringify(portTest.game.balls),striker=portTest.game.strikerId;
+   const candidates=portTest.generateCpuCandidates();
+   const stable=snapshot===JSON.stringify(portTest.game.balls)&&striker===portTest.game.strikerId;
+   const allFinite=candidates.every(c=>[c.score,c.angle,c.power].every(Number.isFinite));
+   portTest.cpuShoot();const fired=!!portTest.shot;
+   const bound=!portTest.shot||portTest.shot.strikerId===portTest.game.strikerId;
+   let steps=0;while(portTest.shot&&steps++<24000)portTest.simulate(1/150);
+   return {stable,allFinite,fired,bound,settled:!portTest.shot,finite:portTest.game.balls.every(b=>[b.x,b.y,b.vx,b.vy].every(Number.isFinite))};
+  },{mode,difficulty});
+  assert.deepEqual(result,{stable:true,allFinite:true,fired:true,bound:true,settled:true,finite:true},`CPU ${mode} ${difficulty}`);
+ }
+ console.log('Nine real headless CPU mode/difficulty scenarios passed.');
  for(const size of [{width:360,height:800},{width:700,height:1400},{width:1280,height:720}]){
   await page.setViewportSize(size);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'viewport width');
  }
