@@ -20,6 +20,6 @@ jobs:
       - name: Selection and power unit tests
         run: node --test research/phase21/selection.test.cjs research/phase22/striker.test.cjs research/phase22/power.test.cjs research/phase24/pocket_rules.test.cjs research/phase25/removal.test.cjs
       - name: Runtime regressions on the browser port
-        run: node research/phase25/runtime.test.cjs research/phase23/fixture.html
+        run: node research/phase26/runtime.test.cjs research/phase23/fixture.html
       - name: Real headless Chromium
         run: node research/phase23/headless.test.cjs research/phase23/fixture.html

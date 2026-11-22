@@ -8,7 +8,7 @@ const {chromium}=require('playwright');
  try{
  const page=await browser.newPage({viewport:{width:412,height:915}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- const html=fs.readFileSync(process.argv[2]||require('node:path').join(__dirname,'fixture.html'),'utf8').replace('restart();requestAnimationFrame(frame);',`restart();window.portTest={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,nearestEligibleBall,exportState,chooseFreeStriker,settings,canAim,choosePower,finishShot,finishPyramidShot,pocket,generateCpuCandidates,selectCpuCandidate,cpuShoot,get power(){return power},get shot(){return shot},fire,simulate};requestAnimationFrame(frame);`);
+ const html=fs.readFileSync(process.argv[2]||require('node:path').join(__dirname,'fixture.html'),'utf8').replace('restart();requestAnimationFrame(frame);',`restart();window.portTest={get game(){return game},restart,resolvePyramidRemoval,drawRemovalGuide,nearestEligibleBall,exportState,chooseFreeStriker,settings,canAim,choosePower,finishShot,finishPyramidShot,pocket,generateCpuCandidates,selectCpuCandidate,cpuShoot,showRecords,maybeShowResult,get power(){return power},get shot(){return shot},fire,simulate};requestAnimationFrame(frame);`);
  await page.setContent(html);
  const setup=()=>{const t=window.portTest;document.getElementById('ballSet').value='combo';document.getElementById('players').value='local';t.restart();t.game.sound=false;t.game.selectingRemoval=true;return t;};
  await page.evaluate(setup);
@@ -75,6 +75,21 @@ const {chromium}=require('playwright');
   assert.deepEqual(result,{stable:true,allFinite:true,fired:true,bound:true,settled:true,finite:true},`CPU ${mode} ${difficulty}`);
  }
  console.log('Nine real headless CPU mode/difficulty scenarios passed.');
+ await page.locator('#menuToggle').click();await page.locator('#showRecords').click();
+ await page.locator('#recordsModal').waitFor({state:'visible'});
+ assert.match(await page.locator('#record_hard_played').textContent(),/^\d+$/);
+ await page.locator('#closeRecords').click();assert.equal(await page.locator('#recordsModal').isVisible(),false);
+ await page.locator('#players').selectOption('cpu');await page.locator('#firstTurn').selectOption('1');await page.locator('#newRack').click();
+ assert.equal(await page.evaluate(()=>portTest.game.turn),1,'computer-first setting');
+ await page.locator('#menuToggle').click();await page.locator('#firstTurn').selectOption('0');await page.locator('#players').selectOption('local');await page.locator('#powerSide').selectOption('right');await page.locator('#newRack').click();
+ await page.evaluate(()=>{portTest.settings.tapToShoot=true;portTest.settings.tapToAim=false;});
+ await clickTable(670,995.5);assert.equal(await page.evaluate(()=>portTest.game.shotNumber),1,'right-hand strength control');
+ await page.evaluate(()=>{portTest.restart();portTest.game.playerMode='local';portTest.game.finished=true;portTest.game.winner=0;portTest.game.played=12;portTest.maybeShowResult();});
+ await page.locator('#resultModal').waitFor({state:'visible'});assert.equal(await page.locator('#resultTitle').textContent(),'Player 1 won!');
+ assert.match(await page.locator('#resultStats').textContent(),/Shots: 12/);
+ await page.locator('#closeResult').click();assert.equal(await page.locator('#resultModal').isVisible(),false);
+ await page.evaluate(()=>portTest.restart());
+ console.log('Records, first-turn setting, right-hand strength control and result dialog passed in Chromium.');
  for(const size of [{width:360,height:800},{width:700,height:1400},{width:1280,height:720}]){
   await page.setViewportSize(size);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'viewport width');
  }
