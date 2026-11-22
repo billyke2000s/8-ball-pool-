@@ -27,3 +27,10 @@ node research/phase23/headless.test.cjs research/phase23/fixture.html
 ```
 
 This is not the complete original AI. Native safety/penalty placement planning, virtual-body simulation and execution error, exact geometry/shot-power mapping, CPU opening-break variation and native-versus-browser replay matching remain unfinished. Input and score equations have source references; browser candidate geometry still contains previously documented approximations. No full Android parity claim is made.
+
+## Confirmed headless result
+
+Final v21 workflow passed: https://github.com/billyke2000s/8-ball-pool-/actions/runs/44977933025 at commit `5f748bd7ddc0ab722cbe2a2c38b621674d5faf78`. All 39 pure tests, the expanded actual-script runtime harness, and real Chromium controls/48 shot combinations/nine CPU scenarios passed. An earlier run at the intermediate workflow commit failed because it still contained the older fixture; the final run uses the matching v21 logic.
+
+Private HTML and public-fixture gameplay script SHA-256: `17c3e2d7e9e3e351d23bcb5997595f17b4e489e3fb9ad50a86588747f2df8e50`.
+Private standalone HTML SHA-256: `7ec16c9ed75316d7780aaeee7aa672299f7b6781a79d4e01340e0c1c845669e8` (1,172,492 bytes).
