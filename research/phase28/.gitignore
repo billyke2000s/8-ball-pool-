@@ -1,0 +1,8 @@
+# Built from the user's own APK by oracle/setup.sh; never committed.
+oracle/cls/
+oracle/orig.jar
+oracle/javap.txt
+oracle/stubs/
+oracle/stubcls/
+oracle/hcls/
+oracle/stubfiles.txt

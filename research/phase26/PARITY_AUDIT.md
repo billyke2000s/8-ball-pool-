@@ -1,6 +1,6 @@
-# Original Billiard app → HTML parity audit (updated for v23)
+# Original Billiard app → HTML parity audit (updated for v24)
 
-This inventory replaces the earlier emphasis on isolated physics tests with the app surface and systems still requiring conversion. **No category is certified 1:1.** A passing browser test establishes the described browser behaviour only. Source material is the user's v20 recovered Java/Smali/resources; original APK SHA-256 `d91843d6675d0787e65c4b089edca7e159c10694eb49692380dd4a5acea69f26`.
+This inventory replaces the earlier emphasis on isolated physics tests with the app surface and systems still requiring conversion. **Since v24 the ball physics (contacts, cushions, jaws, pockets, racks, strike velocity) is verified bit-exact against the original bytecode (phase 28). Everything not marked Verified is still unverified.** A passing browser test establishes the described browser behaviour only. Source material is the user's v20 recovered Java/Smali/resources; original APK SHA-256 `d91843d6675d0787e65c4b089edca7e159c10694eb49692380dd4a5acea69f26`.
 
 Status meanings: **Partial** = usable translation with known differences; **Missing** = identified original capability not implemented; **Needs trace** = original code identified, exact behaviour not yet established. Browser-only networking, keyboard controls and accessibility labels are extensions, not original app parity.
 
@@ -29,7 +29,7 @@ Status meanings: **Partial** = usable translation with known differences; **Miss
 | Tap to shoot | Partial | Vertical power-control scope and ratio translated |
 | Sounds | Partial | Embedded original cue/collision/pocket/applause playback; mixing/timing differs |
 | Music | Partial | v23 plays original `entertainer.mid` notes/tempo, looping, default off, volume 35/100, resumes position only after < 5 s interruption (`km`, `v3`). Timbre is a Web Audio piano voice, not Android's MIDI synth; browsers need a first tap before audio starts |
-| Pocket size | Partial | 10/20/30 selectable; native table geometry changes approximated |
+| Pocket size | **Physics verified (v24)** | Small = −18 (`t40.Q`, this app version), Normal 20, Large 30. Cushions, jaws, rack and pocket capture are exported from the original `mt`/`ei` code for each size, and the engine is bit-exact against the original (phase 28). Artwork is sized from that geometry but not yet render-verified |
 | Power-bar location | Partial | v22 Left/Right setting moves strength bar, wheel and hit regions; original dimensions still fitted |
 | First turn | Partial | v22 Human/Computer/Random-then-alternate; source first-install exception (`App.b`) not reproduced |
 | Game rules | Partial | Free Pyramid / Combo Pyramid / Pool; outstanding flags below |
@@ -38,7 +38,7 @@ Status meanings: **Partial** = usable translation with known differences; **Miss
 | Lose on scratch while on black | Partial | Event-time suit-clearance handling; complete native flags need replay |
 | Pyramid foul penalty | Partial | Both penalty modes and contact-gated points translated |
 | Navigation bar visibility | Missing | Android system-bar setting; browser adapter not provided |
-| Game speed | Partial | Source velocity/damping expressions, different frame scheduler |
+| Game speed | **Physics verified (v24)** | Default 1. Speed applies only in 1 Player; other modes use min(speed, 1) (`t40.y`). One engine pass per drawn frame with the original frame-time step (phase 28) |
 | Aiming lines | Partial | Browser line drawing and on/off option; all native line variants not recovered |
 | Horizontal orientation | Missing | Fixed portrait world/layout; merely rotating CSS would not reproduce native landscape geometry |
 | Fullscreen | Partial | v22 uses browser Fullscreen API; availability follows browser restrictions |
@@ -47,12 +47,12 @@ Status meanings: **Partial** = usable translation with known differences; **Miss
 
 | System | Status in v22 | Specific gap |
 |---|---|---|
-| Pool / Free / Combo racks and ball identity | Partial | Native screen-dependent rack/ball sizing, startup flags |
-| Cue animation / power mapping | Partial | Tick sequence translated; native scheduling and cue rendering differ |
-| Ball-to-ball contact | Partial | Source normal transfer and sequential update mapped; reference-link semantics simplified |
-| Cushions, lips and jaws | Partial | Source topology with fitted coordinates; exact native geometry missing |
-| Pocket capture / fall / fade | Partial | Source formulas mapped; original event/render clock not identical |
-| Side spin / english | Missing | Original `k7.u`, `ha`/control paths not fully traced or exposed |
+| Pool / Free / Combo racks and ball identity | **Verified (v24)** | Original `wh.s` order and `mt.m0` positions per rule set and pocket size, `x00.d` list order, Pool colour mirroring (`d1 % 3`, `n_games_won`). The win counter uses a browser storage key |
+| Cue animation / power mapping | Partial | Strike velocity (`ia.a`: power^1.12 · 2^(speed−1) · 400 · W, ×1.2 full-screen break) and the human break wobble are now original. The pull-back tick timing and cue drawing are still v23's |
+| Ball-to-ball contact | **Verified bit-exact (v24)** | `k7.b/r/e/a` incl. the break spread; 1000/1000 random shots identical to the original bytecode (phase 28) |
+| Cushions, lips and jaws | **Verified bit-exact (v24)** | The original's 24 `ex` segments and 12 `ea` jaw points per table; `l30.m` contact search machine-translated incl. its retry loop (phase 28) |
+| Pocket capture / fall / fade | **Capture verified (v24)**; animation translated | Capture radii per size/difficulty/speed, legal-ball wider radius (`k7.k`, `ei`) bit-exact. Slide path and fade (`k7.q` path, `k7.h` drawing) are translated, but drawing is not render-verified |
+| Side spin / english | **Not in the original** | `k7` has no spin state; `k7.u` only sets velocity from speed and angle. The bit-exact engine has no spin and matches the original, so nothing is missing |
 | Free striker choice | Partial | Human and CPU candidate striker rebinding translated; gesture geometry differs |
 | Combo selection/removal | Partial | Contact-qualified scoring, native ranking and delay; number-picker UI missing |
 | Pool suit/black/scratch order | Partial | Event-time order translated; native player flags and PvC foul-placement exceptions remain |
@@ -60,7 +60,7 @@ Status meanings: **Partial** = usable translation with known differences; **Miss
 | Ball-in-hand | Partial | Browser placement; native drag offsets, head-area restriction and mode-specific eligibility differ |
 | AI direct/alternate candidates and ranking | Partial | `jo/lr` translated with mapped geometry; complete native candidate simulation absent |
 | AI safety / penalty placement / bank planning | Missing / partial fallback | `x2.c`/`fm` large planning path remains a simple browser fallback |
-| AI execution error and opening-break variation | Missing | Native simulated refinement and variation not reproduced |
+| AI execution error and opening-break variation | Partial | The human break wobble (`ia.a`) is ported (v24). The AI's own execution error and refinement are still missing |
 | Adaptive AI / records | Partial | History direction/migration/score context translated; native bookkeeping not fully replay verified |
 | Solo victory scoring / highscores | Partial | Formula translated; app-clock lifecycle and exact high-score screen conditions differ |
 | Game-result timing / complete statistics | Partial | v22 result screen uses a 350 ms browser delay and available counters; exact native conditional delay not reproduced |

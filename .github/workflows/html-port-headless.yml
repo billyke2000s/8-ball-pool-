@@ -21,6 +21,15 @@ jobs:
         run: node --test research/phase21/selection.test.cjs research/phase22/striker.test.cjs research/phase22/power.test.cjs research/phase24/pocket_rules.test.cjs research/phase25/removal.test.cjs
       - name: Runtime regressions on the browser port
         run: node research/phase26/runtime.test.cjs research/phase23/fixture.html
+      - name: Phase 28 engine vs original-engine golden shots (bit-exact)
+        run: node research/phase28/golden.test.cjs
+      - name: Phase 28 end-to-end page shots vs original engine
+        run: |
+          node research/phase28/e2e.test.cjs research/phase23/fixture.html research/phase28/golden_e2e/pool-pvp.json '{"ballSet":"blackball","players":"local"}' -1.55 0.8 16.6667
+          node research/phase28/e2e.test.cjs research/phase23/fixture.html research/phase28/golden_e2e/combo-solo-speed5.json '{"ballSet":"combo","players":"solo","friction":"5"}' -1.52 0.95 16.6667
+          node research/phase28/e2e.test.cjs research/phase23/fixture.html research/phase28/golden_e2e/pool-cpu-hard-small.json '{"ballSet":"blackball","players":"cpu","difficulty":"hard","pocketSize":"-18"}' -1.58 0.85 20
+      - name: Phase 28 fdlibm pow spot check
+        run: node -e "const p=require('./research/phase28/fdlibm_pow.js');if(p(7.4908565456498692,3)!==420.33392237604016)throw new Error('fdlibm pow drift');console.log('fdlibm pow ok')"
       - name: Phase 27 navigation/music runtime checks
         run: node research/phase27/runtime.test.cjs research/phase23/fixture.html
       - name: Real headless Chromium
